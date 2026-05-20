@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engagement Learner 🧠</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18",
+    "react-dom/client": "https://esm.sh/react-dom@18/client",
+    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm",
+    "@gradio/client": "https://esm.sh/@gradio/client"
+  }
+}
+</script>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&display=swap');
+
+  :root {
+    --bg:       #0a0c12;
+    --surface:  #111420;
+    --border:   #1e2235;
+    --accent:   #10B981;
+    --amber:    #F59E0B;
+    --red:      #EF4444;
+    --muted:    #6B7280;
+    --text:     #e2e8f0;
+    --subtext:  #9ba3c4;
+    --mono:     'Space Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+  #root { position: relative; z-index: 1; }
+
+  .app { display: grid; grid-template-rows: auto auto 1fr; min-height: 100vh; padding: 1.25rem 1.5rem; gap: 0; }
+
+  .header { display: flex; align-items: center; gap: 0.75rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+  .header h1 { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+  .header h1 span { color: var(--accent); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; flex-shrink: 0; }
+  .status-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .privacy-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.66rem; font-family:var(--mono); color:var(--accent); background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:20px; padding:2px 8px; margin-left:auto; }
+
+  .control-bar { display:grid; grid-template-columns:1fr auto; gap:0.75rem; margin-bottom:1.25rem; align-items:center; }
+  .url-input { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.9rem; color:var(--text); font-family:var(--sans); font-size:0.85rem; outline:none; width:100%; transition:border-color 0.2s; }
+  .url-input:focus { border-color:#374151; }
+  .url-input::placeholder { color:var(--muted); }
+  .url-input:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-group { display:flex; gap:0.5rem; }
+  button { font-family:var(--mono); font-size:0.78rem; font-weight:700; padding:0.55rem 1rem; border-radius:7px; border:none; cursor:pointer; transition:opacity .15s, transform .1s; white-space:nowrap; }
+  button:active { transform:scale(0.97); }
+  button:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+  .btn-primary { background:var(--accent); color:#000; }
+  .btn-danger  { background:#1f2937; color:var(--red); border:1px solid #374151; }
+  .btn-ghost   { background:#1f2937; color:var(--subtext); border:1px solid #374151; }
+  .btn-ghost.lit { color:var(--amber); border-color:var(--amber); }
+
+  .main-grid { display:grid; grid-template-columns:3fr 2fr; gap:1.25rem; }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .panel-header { padding:0.65rem 1rem; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:0.68rem; color:var(--subtext); letter-spacing:0.08em; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
+  .live-pill { font-size:0.65rem; color:var(--accent); }
+
+  .iframe-wrap { position:relative; padding-bottom:56.25%; height:0; }
+  .iframe-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
+  .iframe-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; height:300px; gap:0.5rem; color:var(--muted); }
+  .iframe-placeholder .icon { font-size:2.2rem; }
+  .iframe-placeholder p { font-size:0.82rem; }
+
+  .webcam-section { padding:0.75rem; }
+  .webcam-wrap { position:relative; width:100%; border-radius:8px; overflow:hidden; background:#000; aspect-ratio:4/3; }
+  .webcam-wrap video, .webcam-wrap canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .webcam-wrap canvas { pointer-events:none; }
+  .webcam-off { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.82rem; }
+  .cam-badge { position:absolute; bottom:8px; left:8px; background:rgba(0,0,0,.7); border-radius:5px; padding:3px 8px; font-family:var(--mono); font-size:0.65rem; color:var(--accent); }
+  .no-face-badge { position:absolute; bottom:8px; right:8px; background:rgba(239,68,68,.15); border:1px solid var(--red); border-radius:5px; padding:2px 6px; font-size:0.65rem; color:var(--red); }
+
+  .progress-wrap { padding:0.6rem 0.75rem 0.5rem; }
+  .progress-bg { background:var(--border); border-radius:4px; height:4px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .3s; }
+  .progress-lbl { font-size:0.67rem; color:var(--muted); margin-top:4px; font-family:var(--mono); }
+
+  .stats-row { display:flex; gap:1rem; padding:0.5rem 1rem; border-top:1px solid var(--border); flex-wrap:wrap; }
+  .stat .val { font-family:var(--mono); font-size:0.95rem; font-weight:700; }
+  .stat .key { font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+
+  .timeline-section { padding:0.75rem; }
+  .chart-placeholder { height:255px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.82rem; text-align:center; line-height:1.9; }
+
+  .labels-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; padding:0.5rem 0.75rem 0.75rem; }
+  .label-chip { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:8px; padding:0.5rem 0.4rem; text-align:center; }
+  .label-chip .emoji { font-size:1.1rem; display:block; margin-bottom:2px; }
+  .label-chip .name  { font-size:0.68rem; color:var(--subtext); }
+  .label-chip .level { font-family:var(--mono); font-size:0.7rem; font-weight:700; margin-top:2px; }
+
+  .banner { padding:0.5rem 1rem; border-radius:7px; font-size:0.8rem; margin-bottom:0.75rem; }
+  .banner.error { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); color:var(--red); }
+  .banner.warn  { background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25); color:var(--amber); }
+
+  details { margin-top:0.75rem; }
+  summary { font-family:var(--mono); font-size:0.7rem; color:var(--muted); cursor:pointer; user-select:none; list-style:none; display:flex; align-items:center; gap:0.4rem; padding:0.4rem 0; }
+  summary::before { content:'▶'; font-size:0.58rem; transition:transform .2s; }
+  details[open] summary::before { transform:rotate(90deg); }
+  .debug-box { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem; margin-top:0.5rem; font-family:var(--mono); font-size:0.7rem; color:var(--subtext); line-height:2; }
+  .ok  { color:var(--accent); }
+  .err { color:var(--red); }
+  .dbg-btns { display:flex; gap:0.5rem; margin-top:0.5rem; }
+  hr.div { border:none; border-top:1px solid var(--border); margin:0.6rem 0; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+const HF_TOKEN    = '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';
+const HF_SPACE    = 'Trylio/oelm_xgb';
+
+const SUPABASE_URL = 'https://idrukwbcxfimbuzcdvkk.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkcnVrd2JjeGZpbWJ1emNkdmtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTk5NjMsImV4cCI6MjA5MjMzNTk2M30.xPhQTCrWRbmNWnfgASpS8G9R_S8MpTidxMzvgzbx3VM';
+
+const CAPTURE_FPS    = 5;
+const WINDOW_SECONDS = 10;
+const WINDOW_FRAMES  = CAPTURE_FPS * WINDOW_SECONDS;  // 50
+const MODEL_VERSION  = 'xgb-v1';
+
+// ═══════════════════════════════════════════════════════════════
+// BLENDSHAPE_NAMES
+// ═══════════════════════════════════════════════════════════════
+const BLENDSHAPE_NAMES = [
+  '_neutral',
+  'browDownLeft','browDownRight',
+  'browInnerUp',
+  'browOuterUpLeft','browOuterUpRight',
+  'cheekPuff',
+  'cheekSquintLeft','cheekSquintRight',
+  'eyeBlinkLeft','eyeBlinkRight',
+  'eyeLookDownLeft','eyeLookDownRight',
+  'eyeLookInLeft','eyeLookInRight',
+  'eyeLookOutLeft','eyeLookOutRight',
+  'eyeLookUpLeft','eyeLookUpRight',
+  'eyeSquintLeft','eyeSquintRight',
+  'eyeWideLeft','eyeWideRight',
+  'jawForward',
+  'jawLeft','jawRight',
+  'jawOpen',
+  'mouthClose',
+  'mouthDimpleLeft','mouthDimpleRight',
+  'mouthFrownLeft','mouthFrownRight',
+  'mouthFunnel',
+  'mouthLeft','mouthRight',
+  'mouthLowerDownLeft','mouthLowerDownRight',
+  'mouthPressLeft','mouthPressRight',
+  'mouthPucker',
+  'mouthRollLower','mouthRollUpper',
+  'mouthShrugLower','mouthShrugUpper',
+  'mouthSmileLeft','mouthSmileRight',
+  'mouthStretchLeft','mouthStretchRight',
+  'mouthUpperUpLeft','mouthUpperUpRight',
+  'noseSneerLeft','noseSneerRight',
+];
+
+const LABEL_COLS   = ['Boredom','Engagement','Confusion','Frustration'];
+const LABEL_COLORS = { Boredom:'#6B7280', Engagement:'#10B981', Confusion:'#F59E0B', Frustration:'#EF4444' };
+const LABEL_EMOJIS = { Boredom:'😴', Engagement:'🎯', Confusion:'😕', Frustration:'😤' };
+const LEVEL_LABELS = ['Very Low','Low','High','Very High'];
+
+// ═══════════════════════════════════════════════════════════════
+// extractBlendshapes()
+// ═══════════════════════════════════════════════════════════════
+function extractBlendshapes(result) {
+  if (!result.faceBlendshapes?.length) return null;
+  const cats = result.faceBlendshapes[0].categories;
+  const out = {};
+  for (const cat of cats) {
+    out[cat.categoryName] = parseFloat(cat.score.toFixed(5));
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FEATURE_ORDER — 364 keys from feature_order.pkl
+// ═══════════════════════════════════════════════════════════════
+const FEATURE_ORDER = ["_neutral_mean","_neutral_std","_neutral_min","_neutral_max","_neutral_median","_neutral_skew","_neutral_kurt","browDownLeft_mean","browDownLeft_std","browDownLeft_min","browDownLeft_max","browDownLeft_median","browDownLeft_skew","browDownLeft_kurt","browDownRight_mean","browDownRight_std","browDownRight_min","browDownRight_max","browDownRight_median","browDownRight_skew","browDownRight_kurt","browInnerUp_mean","browInnerUp_std","browInnerUp_min","browInnerUp_max","browInnerUp_median","browInnerUp_skew","browInnerUp_kurt","browOuterUpLeft_mean","browOuterUpLeft_std","browOuterUpLeft_min","browOuterUpLeft_max","browOuterUpLeft_median","browOuterUpLeft_skew","browOuterUpLeft_kurt","browOuterUpRight_mean","browOuterUpRight_std","browOuterUpRight_min","browOuterUpRight_max","browOuterUpRight_median","browOuterUpRight_skew","browOuterUpRight_kurt","cheekPuff_mean","cheekPuff_std","cheekPuff_min","cheekPuff_max","cheekPuff_median","cheekPuff_skew","cheekPuff_kurt","cheekSquintLeft_mean","cheekSquintLeft_std","cheekSquintLeft_min","cheekSquintLeft_max","cheekSquintLeft_median","cheekSquintLeft_skew","cheekSquintLeft_kurt","cheekSquintRight_mean","cheekSquintRight_std","cheekSquintRight_min","cheekSquintRight_max","cheekSquintRight_median","cheekSquintRight_skew","cheekSquintRight_kurt","eyeBlinkLeft_mean","eyeBlinkLeft_std","eyeBlinkLeft_min","eyeBlinkLeft_max","eyeBlinkLeft_median","eyeBlinkLeft_skew","eyeBlinkLeft_kurt","eyeBlinkRight_mean","eyeBlinkRight_std","eyeBlinkRight_min","eyeBlinkRight_max","eyeBlinkRight_median","eyeBlinkRight_skew","eyeBlinkRight_kurt","eyeLookDownLeft_mean","eyeLookDownLeft_std","eyeLookDownLeft_min","eyeLookDownLeft_max","eyeLookDownLeft_median","eyeLookDownLeft_skew","eyeLookDownLeft_kurt","eyeLookDownRight_mean","eyeLookDownRight_std","eyeLookDownRight_min","eyeLookDownRight_max","eyeLookDownRight_median","eyeLookDownRight_skew","eyeLookDownRight_kurt","eyeLookInLeft_mean","eyeLookInLeft_std","eyeLookInLeft_min","eyeLookInLeft_max","eyeLookInLeft_median","eyeLookInLeft_skew","eyeLookInLeft_kurt","eyeLookInRight_mean","eyeLookInRight_std","eyeLookInRight_min","eyeLookInRight_max","eyeLookInRight_median","eyeLookInRight_skew","eyeLookInRight_kurt","eyeLookOutLeft_mean","eyeLookOutLeft_std","eyeLookOutLeft_min","eyeLookOutLeft_max","eyeLookOutLeft_median","eyeLookOutLeft_skew","eyeLookOutLeft_kurt","eyeLookOutRight_mean","eyeLookOutRight_std","eyeLookOutRight_min","eyeLookOutRight_max","eyeLookOutRight_median","eyeLookOutRight_skew","eyeLookOutRight_kurt","eyeLookUpLeft_mean","eyeLookUpLeft_std","eyeLookUpLeft_min","eyeLookUpLeft_max","eyeLookUpLeft_median","eyeLookUpLeft_skew","eyeLookUpLeft_kurt","eyeLookUpRight_mean","eyeLookUpRight_std","eyeLookUpRight_min","eyeLookUpRight_max","eyeLookUpRight_median","eyeLookUpRight_skew","eyeLookUpRight_kurt","eyeSquintLeft_mean","eyeSquintLeft_std","eyeSquintLeft_min","eyeSquintLeft_max","eyeSquintLeft_median","eyeSquintLeft_skew","eyeSquintLeft_kurt","eyeSquintRight_mean","eyeSquintRight_std","eyeSquintRight_min","eyeSquintRight_max","eyeSquintRight_median","eyeSquintRight_skew","eyeSquintRight_kurt","eyeWideLeft_mean","eyeWideLeft_std","eyeWideLeft_min","eyeWideLeft_max","eyeWideLeft_median","eyeWideLeft_skew","eyeWideLeft_kurt","eyeWideRight_mean","eyeWideRight_std","eyeWideRight_min","eyeWideRight_max","eyeWideRight_median","eyeWideRight_skew","eyeWideRight_kurt","jawForward_mean","jawForward_std","jawForward_min","jawForward_max","jawForward_median","jawForward_skew","jawForward_kurt","jawLeft_mean","jawLeft_std","jawLeft_min","jawLeft_max","jawLeft_median","jawLeft_skew","jawLeft_kurt","jawOpen_mean","jawOpen_std","jawOpen_min","jawOpen_max","jawOpen_median","jawOpen_skew","jawOpen_kurt","jawRight_mean","jawRight_std","jawRight_min","jawRight_max","jawRight_median","jawRight_skew","jawRight_kurt","mouthClose_mean","mouthClose_std","mouthClose_min","mouthClose_max","mouthClose_median","mouthClose_skew","mouthClose_kurt","mouthDimpleLeft_mean","mouthDimpleLeft_std","mouthDimpleLeft_min","mouthDimpleLeft_max","mouthDimpleLeft_median","mouthDimpleLeft_skew","mouthDimpleLeft_kurt","mouthDimpleRight_mean","mouthDimpleRight_std","mouthDimpleRight_min","mouthDimpleRight_max","mouthDimpleRight_median","mouthDimpleRight_skew","mouthDimpleRight_kurt","mouthFrownLeft_mean","mouthFrownLeft_std","mouthFrownLeft_min","mouthFrownLeft_max","mouthFrownLeft_median","mouthFrownLeft_skew","mouthFrownLeft_kurt","mouthFrownRight_mean","mouthFrownRight_std","mouthFrownRight_min","mouthFrownRight_max","mouthFrownRight_median","mouthFrownRight_skew","mouthFrownRight_kurt","mouthFunnel_mean","mouthFunnel_std","mouthFunnel_min","mouthFunnel_max","mouthFunnel_median","mouthFunnel_skew","mouthFunnel_kurt","mouthLeft_mean","mouthLeft_std","mouthLeft_min","mouthLeft_max","mouthLeft_median","mouthLeft_skew","mouthLeft_kurt","mouthLowerDownLeft_mean","mouthLowerDownLeft_std","mouthLowerDownLeft_min","mouthLowerDownLeft_max","mouthLowerDownLeft_median","mouthLowerDownLeft_skew","mouthLowerDownLeft_kurt","mouthLowerDownRight_mean","mouthLowerDownRight_std","mouthLowerDownRight_min","mouthLowerDownRight_max","mouthLowerDownRight_median","mouthLowerDownRight_skew","mouthLowerDownRight_kurt","mouthPressLeft_mean","mouthPressLeft_std","mouthPressLeft_min","mouthPressLeft_max","mouthPressLeft_median","mouthPressLeft_skew","mouthPressLeft_kurt","mouthPressRight_mean","mouthPressRight_std","mouthPressRight_min","mouthPressRight_max","mouthPressRight_median","mouthPressRight_skew","mouthPressRight_kurt","mouthPucker_mean","mouthPucker_std","mouthPucker_min","mouthPucker_max","mouthPucker_median","mouthPucker_skew","mouthPucker_kurt","mouthRight_mean","mouthRight_std","mouthRight_min","mouthRight_max","mouthRight_median","mouthRight_skew","mouthRight_kurt","mouthRollLower_mean","mouthRollLower_std","mouthRollLower_min","mouthRollLower_max","mouthRollLower_median","mouthRollLower_skew","mouthRollLower_kurt","mouthRollUpper_mean","mouthRollUpper_std","mouthRollUpper_min","mouthRollUpper_max","mouthRollUpper_median","mouthRollUpper_skew","mouthRollUpper_kurt","mouthShrugLower_mean","mouthShrugLower_std","mouthShrugLower_min","mouthShrugLower_max","mouthShrugLower_median","mouthShrugLower_skew","mouthShrugLower_kurt","mouthShrugUpper_mean","mouthShrugUpper_std","mouthShrugUpper_min","mouthShrugUpper_max","mouthShrugUpper_median","mouthShrugUpper_skew","mouthShrugUpper_kurt","mouthSmileLeft_mean","mouthSmileLeft_std","mouthSmileLeft_min","mouthSmileLeft_max","mouthSmileLeft_median","mouthSmileLeft_skew","mouthSmileLeft_kurt","mouthSmileRight_mean","mouthSmileRight_std","mouthSmileRight_min","mouthSmileRight_max","mouthSmileRight_median","mouthSmileRight_skew","mouthSmileRight_kurt","mouthStretchLeft_mean","mouthStretchLeft_std","mouthStretchLeft_min","mouthStretchLeft_max","mouthStretchLeft_median","mouthStretchLeft_skew","mouthStretchLeft_kurt","mouthStretchRight_mean","mouthStretchRight_std","mouthStretchRight_min","mouthStretchRight_max","mouthStretchRight_median","mouthStretchRight_skew","mouthStretchRight_kurt","mouthUpperUpLeft_mean","mouthUpperUpLeft_std","mouthUpperUpLeft_min","mouthUpperUpLeft_max","mouthUpperUpLeft_median","mouthUpperUpLeft_skew","mouthUpperUpLeft_kurt","mouthUpperUpRight_mean","mouthUpperUpRight_std","mouthUpperUpRight_min","mouthUpperUpRight_max","mouthUpperUpRight_median","mouthUpperUpRight_skew","mouthUpperUpRight_kurt","noseSneerLeft_mean","noseSneerLeft_std","noseSneerLeft_min","noseSneerLeft_max","noseSneerLeft_median","noseSneerLeft_skew","noseSneerLeft_kurt","noseSneerRight_mean","noseSneerRight_std","noseSneerRight_min","noseSneerRight_max","noseSneerRight_median","noseSneerRight_skew","noseSneerRight_kurt"];
+
+// ═══════════════════════════════════════════════════════════════
+// aggregateWindow() — mean/std/min/max/median/skew/kurt per blendshape
+// ═══════════════════════════════════════════════════════════════
+function aggregateWindow(frames) {
+  if (!frames.length) return null;
+  const result = {};
+
+  for (const name of BLENDSHAPE_NAMES) {
+    const vals = frames.map(f => f[name] ?? 0);
+    const n = vals.length;
+
+    const mean = vals.reduce((s, v) => s + v, 0) / n;
+    const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance);
+
+    let min = vals[0], max = vals[0];
+    for (const v of vals) { if (v < min) min = v; if (v > max) max = v; }
+
+    const sorted = [...vals].sort((a, b) => a - b);
+    const mid = n % 2 === 0
+      ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+      : sorted[Math.floor(n / 2)];
+
+    const skew = std === 0 ? 0
+      : vals.reduce((s, v) => s + ((v - mean) / std) ** 3, 0) / n;
+    const kurt = std === 0 ? 0
+      : (vals.reduce((s, v) => s + ((v - mean) / std) ** 4, 0) / n) - 3;
+
+    result[`${name}_mean`]   = parseFloat(mean.toFixed(5));
+    result[`${name}_std`]    = parseFloat(std.toFixed(5));
+    result[`${name}_min`]    = parseFloat(min.toFixed(5));
+    result[`${name}_max`]    = parseFloat(max.toFixed(5));
+    result[`${name}_median`] = parseFloat(mid.toFixed(5));
+    result[`${name}_skew`]   = parseFloat(skew.toFixed(5));
+    result[`${name}_kurt`]   = parseFloat(kurt.toFixed(5));
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HF Gradio client — FIX: single declaration, token always passed
+// ═══════════════════════════════════════════════════════════════
+import { Client } from "@gradio/client";
+
+let hfClient = null;
+
+async function getHFClient() {
+  if (!hfClient) {
+    try {
+      hfClient = await Client.connect(HF_SPACE, { hf_token: HF_TOKEN });
+      console.log('[HF] Connected to', HF_SPACE);
+    } catch (err) {
+      hfClient = null;
+      throw err;
+    }
+  }
+  return hfClient;
+}
+
+async function classifyWindow(aggregatedFeatures) {
+  try {
+    const client = await getHFClient();
+
+    // Build ordered feature object matching feature_order.pkl exactly
+    const orderedFeatures = {};
+    for (const k of FEATURE_ORDER) {
+      orderedFeatures[k] = aggregatedFeatures[k] ?? 0;
+    }
+
+    const result = await client.predict("/predict", {
+      agg_features: orderedFeatures,
+    });
+
+    const raw = result?.data?.[0] ?? null;
+    if (!raw) {
+      console.warn('[HF] Empty response:', result);
+      return null;
+    }
+
+    console.log('[HF] Prediction:', raw);
+    return raw;
+  } catch (err) {
+    console.error('[HF] classify error:', err);
+    hfClient = null;  // force reconnect on next call
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function sbRequest(table, method, body) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Supabase ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function createSession(label = '', metadata = {}) {
+  const data = await sbRequest('sessions', 'POST', { label, metadata });
+  return data?.[0]?.id ?? null;
+}
+
+async function insertFrame(sessionId, features, faceDetected = true) {
+  if (!sessionId) return null;
+  const data = await sbRequest('blendshape_frames', 'POST', {
+    session_id:    sessionId,
+    features:      features,
+    face_detected: faceDetected,
+  });
+  return data?.[0]?.id ?? null;
+}
+
+async function insertPrediction(frameId, sessionId, prediction) {
+  if (!sessionId) return;
+
+  const labelsFlat = {};
+  const probsFlat  = {};
+  let maxConf = 0;
+
+  for (const lbl of LABEL_COLS) {
+    if (!prediction[lbl]) continue;
+    labelsFlat[lbl] = prediction[lbl].label;
+    probsFlat[lbl]  = prediction[lbl].probabilities;
+    const conf = prediction[lbl].probabilities[prediction[lbl].label] ?? 0;
+    if (conf > maxConf) maxConf = conf;
+  }
+
+  await sbRequest('emotion_predictions', 'POST', {
+    frame_id:      frameId ?? null,
+    session_id:    sessionId,
+    label:         JSON.stringify(labelsFlat),
+    confidence:    parseFloat(maxConf.toFixed(5)),
+    probabilities: probsFlat,
+    model_version: MODEL_VERSION,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIMELINE CHART (Plotly)
+// ═══════════════════════════════════════════════════════════════
+function TimelineChart({ history }) {
+  const divRef = useRef(null);
+  useEffect(() => {
+    if (!divRef.current) return;
+    if (!history.length) { Plotly.purge?.(divRef.current); return; }
+    const df = [...history].sort((a,b) => new Date(a.predicted_at)-new Date(b.predicted_at));
+    const xs = df.map(r => r.predicted_at);
+    const mode = df.length < 2 ? 'markers' : 'lines+markers';
+    const traces = LABEL_COLS
+      .filter(lbl => df.some(r => r[lbl] !== undefined))
+      .map(lbl => ({
+        x: xs,
+        y: df.map(r => r[lbl] ?? null),
+        mode, connectgaps: true,
+        name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
+        line:   { color: LABEL_COLORS[lbl], width: 2.5 },
+        marker: { size: 7, color: LABEL_COLORS[lbl] },
+        hovertemplate: `<b>${lbl}</b><br>%{x|%H:%M:%S}<br>level: %{y}<extra></extra>`,
+      }));
+    Plotly.react(divRef.current, traces, {
+      margin: { l:0,r:10,t:10,b:10 }, height:255,
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      xaxis: { showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', type:'date' },
+      yaxis: {
+        range:[-0.2,3.2], tickmode:'array', tickvals:[0,1,2,3],
+        ticktext:['Very Low','Low','High','Very High'],
+        showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa',
+      },
+      legend: { orientation:'h', yanchor:'bottom', y:1.02, xanchor:'right', x:1, font:{size:11,color:'#ccc'} },
+      font: { size:11, color:'#ccc' },
+    }, { displayModeBar:false, responsive:true });
+  }, [history]);
+
+  if (!history.length) {
+    return React.createElement('div', { className:'chart-placeholder' },
+      React.createElement('div', null,
+        '📊 Timeline appears after the first ', React.createElement('b',null,`${WINDOW_SECONDS}s`), ' window',
+        React.createElement('br'),
+        React.createElement('span', {style:{fontSize:'0.7rem'}}, `(${WINDOW_FRAMES} frames at ${CAPTURE_FPS} FPS)`)
+      )
+    );
+  }
+  return React.createElement('div', { ref:divRef, style:{width:'100%'} });
+}
+
+// Label chips
+function LabelChips({ currentPreds }) {
+  return React.createElement('div', { className:'labels-row' },
+    LABEL_COLS.map(lbl => {
+      const pred = currentPreds?.[lbl];
+      const idx  = pred?.label ?? null;
+      return React.createElement('div', { key:lbl, className:'label-chip' },
+        React.createElement('span', {className:'emoji'}, LABEL_EMOJIS[lbl]),
+        React.createElement('div',  {className:'name'},  lbl),
+        React.createElement('div',  {
+          className:'level',
+          style:{ color: idx !== null ? LABEL_COLORS[lbl] : 'var(--muted)' },
+        }, idx !== null ? LEVEL_LABELS[idx] : '—'),
+      );
+    })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════
+function App() {
+  const [contentUrl,   setContentUrl]   = useState('');
+  const [running,      setRunning]      = useState(false);
+  const [showGraph,    setShowGraph]    = useState(false);
+  const [history,      setHistory]      = useState([]);
+  const [currentPreds, setCurrentPreds] = useState(null);
+  const [frameCount,   setFrameCount]   = useState(0);
+  const [windowCount,  setWindowCount]  = useState(0);
+  const [sessionId,    setSessionId]    = useState(null);
+  const [lastPredTime, setLastPredTime] = useState(null);
+  const [lastError,    setLastError]    = useState(null);
+  const [noFace,       setNoFace]       = useState(false);
+  const [cameraReady,  setCameraReady]  = useState(false);
+  const [bufferLen,    setBufferLen]    = useState(0);
+  const [modelReady,   setModelReady]   = useState(false);
+  const [configWarn,   setConfigWarn]   = useState('');
+
+  const videoRef     = useRef(null);
+  const canvasRef    = useRef(null);
+  const landmarkerRef= useRef(null);
+  const streamRef    = useRef(null);
+  const frameBuffer  = useRef([]);
+  const throttleRef  = useRef(0);
+  const runningRef   = useRef(false);
+  const rafRef       = useRef(null);
+  const drawUtils    = useRef(null);
+  const sessionRef   = useRef(null);
+
+  // FIX: configWarn only fires if credentials are actually missing
+  useEffect(() => {
+    const missing = [];
+    if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!SUPABASE_KEY) missing.push('SUPABASE_KEY');
+    if (!HF_TOKEN)     missing.push('HF_TOKEN');
+    if (missing.length) setConfigWarn(`Not configured: ${missing.join(', ')} — edit the CONFIG block at the top of the file`);
+  }, []);
+
+  // Load MediaPipe FaceLandmarker
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+        );
+        const lm = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate: 'GPU',
+          },
+          outputFaceBlendshapes: true,
+          runningMode: 'VIDEO',
+          numFaces: 1,
+        });
+        if (!cancelled) { landmarkerRef.current = lm; setModelReady(true); }
+      } catch(e) {
+        if (!cancelled) setLastError('MediaPipe load failed: ' + e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // RAF capture loop
+  const processFrame = useCallback(async () => {
+    if (!runningRef.current) return;
+
+    const video      = videoRef.current;
+    const canvas     = canvasRef.current;
+    const landmarker = landmarkerRef.current;
+
+    if (!video || !canvas || !landmarker || video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    const now = performance.now();
+    if (now - throttleRef.current < 1000 / CAPTURE_FPS) {
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+    throttleRef.current = now;
+
+    let result;
+    try { result = landmarker.detectForVideo(video, now); }
+    catch { rafRef.current = requestAnimationFrame(processFrame); return; }
+
+    const ctx = canvas.getContext('2d');
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (result.faceLandmarks?.length && drawUtils.current) {
+      for (const lms of result.faceLandmarks) {
+        drawUtils.current.drawConnectors(
+          lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+          { color:'#0f4', lineWidth:0.5, opacity:0.2 }
+        );
+      }
+    }
+
+    const features = extractBlendshapes(result);
+
+    if (features === null) {
+      setNoFace(true);
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+    setNoFace(false);
+    setFrameCount(c => c + 1);
+
+    frameBuffer.current.push(features);
+    const len = frameBuffer.current.length;
+    setBufferLen(len);
+
+    if (len >= WINDOW_FRAMES) {
+      const snapshot = frameBuffer.current.slice();
+      frameBuffer.current = [];
+      setBufferLen(0);
+
+      const agg = aggregateWindow(snapshot);
+      if (!agg) { rafRef.current = requestAnimationFrame(processFrame); return; }
+
+      let prediction = null;
+      try {
+        prediction = await classifyWindow(agg);
+      } catch(e) {
+        setLastError('[HF] ' + String(e));
+      }
+
+      if (prediction) {
+        setCurrentPreds(prediction);
+        setWindowCount(c => c + 1);
+        setLastPredTime(new Date().toLocaleTimeString());
+        setShowGraph(true);
+
+        const ts = new Date().toISOString();
+        const row = { predicted_at: ts };
+        for (const lbl of LABEL_COLS) {
+          if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
+        }
+        setHistory(h => [...h.slice(-179), row]);
+
+        insertPrediction(null, sessionRef.current, prediction)
+          .catch(e => setLastError('[supabase] insertPrediction: ' + String(e)));
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(processFrame);
+  }, []);
+
+  const handleStart = useCallback(async () => {
+    if (!modelReady) { setLastError('MediaPipe model still loading — please wait.'); return; }
+    setLastError(null);
+    setHistory([]);
+    setCurrentPreds(null);
+    setFrameCount(0);
+    setWindowCount(0);
+    setBufferLen(0);
+    setShowGraph(false);
+    frameBuffer.current = [];
+    throttleRef.current = 0;
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
+    } catch(e) {
+      setLastError('Camera access denied: ' + e.message);
+      return;
+    }
+    streamRef.current = stream;
+    videoRef.current.srcObject = stream;
+    await videoRef.current.play();
+    setCameraReady(true);
+
+    if (canvasRef.current) {
+      drawUtils.current = new DrawingUtils(canvasRef.current.getContext('2d'));
+    }
+
+    let sid = null;
+    try {
+      sid = await createSession(contentUrl.slice(0, 80) || 'unlabelled', {});
+    } catch(e) {
+      setLastError('[supabase] createSession: ' + String(e));
+    }
+    setSessionId(sid);
+    sessionRef.current = sid;
+
+    runningRef.current = true;
+    setRunning(true);
+    rafRef.current = requestAnimationFrame(processFrame);
+  }, [modelReady, contentUrl, processFrame]);
+
+  const handleStop = useCallback(() => {
+    runningRef.current = false;
+    setRunning(false);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraReady(false);
+    setNoFace(false);
+  }, []);
+
+  useEffect(() => () => handleStop(), []);
+
+  const injectDummy = useCallback(() => {
+    const dummy = {};
+    for (const lbl of LABEL_COLS) {
+      const label = Math.floor(Math.random() * 4);
+      dummy[lbl] = { label, probabilities: Array.from({length:4}, () => +Math.random().toFixed(4)) };
+    }
+    const row = { predicted_at: new Date().toISOString() };
+    for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
+    setHistory(h => [...h, row]);
+    setCurrentPreds(dummy);
+    setWindowCount(c => c + 1);
+    setShowGraph(true);
+  }, []);
+
+  const e = React.createElement;
+
+  return e('div', { className:'app' },
+
+    e('div', { className:'header' },
+      e('div', { className:`status-dot ${running ? 'active' : ''}` }),
+      e('h1', null, 'Engagement ', e('span',null,'Learner')),
+      e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
+    ),
+
+    configWarn && e('div', { className:'banner warn' }, '⚠ ' + configWarn),
+    lastError  && e('div', { className:'banner error' }, '⚠ ' + lastError),
+
+    e('div', { className:'control-bar' },
+      e('input', {
+        className:'url-input', type:'text',
+        placeholder:'Paste a lecture / video URL…',
+        value:contentUrl, onChange:ev=>setContentUrl(ev.target.value),
+        disabled:running,
+      }),
+      e('div', { className:'btn-group' },
+        !running
+          ? e('button', {
+              className:'btn-primary', onClick:handleStart,
+              disabled:!modelReady,
+              title: modelReady ? 'Start capture' : 'Loading MediaPipe model…',
+            }, modelReady ? '▶ Start' : '⏳ Loading…')
+          : e('button', { className:'btn-danger', onClick:handleStop }, '⏹ Stop'),
+        e('button', {
+          className:`btn-ghost ${showGraph ? 'lit' : ''}`,
+          onClick:()=>setShowGraph(g=>!g),
+          disabled:!history.length,
+        }, '📊 Graph'),
+      ),
+    ),
+
+    e('div', { className:'main-grid' },
+
+      e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
+
+        e('div', { className:'panel' },
+          e('div', { className:'panel-header' },
+            e('span',null,'🎬 Content'),
+            contentUrl && e('span',{style:{color:'var(--muted)',fontSize:'0.63rem',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},contentUrl),
+          ),
+          // FIX: added sandbox allow-scripts allow-same-origin for video embeds
+          contentUrl
+            ? e('div',{className:'iframe-wrap'}, e('iframe',{src:contentUrl,allow:'autoplay; encrypted-media',allowFullScreen:true,sandbox:'allow-scripts allow-same-origin allow-forms allow-popups'}))
+            : e('div',{className:'iframe-placeholder'}, e('div',{className:'icon'},'🎬'), e('p',null,'Paste a URL above to load content')),
+        ),
+
+        e('div', { className:'panel' },
+          e('div', { className:'panel-header' },
+            e('span',null,'📷 Face capture'),
+            running && e('span',{className:'live-pill'},'● LIVE — blendshape dicts only, no video leaves this device'),
+          ),
+          e('div', { className:'webcam-section' },
+            e('div', { className:'webcam-wrap' },
+              e('video', { ref:videoRef, muted:true, playsInline:true, style:{display:cameraReady?'block':'none'} }),
+              e('canvas', { ref:canvasRef }),
+              !cameraReady && e('div',{className:'webcam-off'}, running ? '⏳ Starting camera…' : 'Camera off'),
+              cameraReady && e('div',{className:'cam-badge'}, `${frameCount} frames`),
+              noFace && e('div',{className:'no-face-badge'},'No face detected'),
+            ),
+            e('div', { className:'progress-wrap' },
+              e('div',{className:'progress-bg'}, e('div',{className:'progress-fill',style:{width:`${Math.min(bufferLen/WINDOW_FRAMES,1)*100}%`}})),
+              e('div',{className:'progress-lbl'}, `Window buffer: ${bufferLen} / ${WINDOW_FRAMES} frames — predicts every ${WINDOW_SECONDS}s`),
+            ),
+          ),
+          e('div', { className:'stats-row' },
+            e('div',{className:'stat'}, e('div',{className:'val'},frameCount),    e('div',{className:'key'},'Frames')),
+            e('div',{className:'stat'}, e('div',{className:'val'},windowCount),   e('div',{className:'key'},'Windows')),
+            e('div',{className:'stat'}, e('div',{className:'val'},history.length),e('div',{className:'key'},'Rows')),
+            e('div',{className:'stat'}, e('div',{className:'val'},lastPredTime??'—'),e('div',{className:'key'},'Last pred')),
+          ),
+        ),
+      ),
+
+      e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
+
+        e('div', { className:'panel' },
+          e('div',{className:'panel-header'},'📈 Engagement timeline'),
+          e('div',{className:'timeline-section'}, e(TimelineChart,{history: showGraph ? history : []})),
+          e('hr',{className:'div'}),
+          e(LabelChips, { currentPreds }),
+        ),
+
+        e('details', null,
+          e('summary',null,'🐛 Debug panel'),
+          e('div',{className:'debug-box'},
+            e('div',null, e('b',null,'MediaPipe: '), e('span',{className:modelReady?'ok':'err'},String(modelReady))),
+            e('div',null, e('b',null,'Camera: '),    e('span',{className:cameraReady?'ok':'err'},String(cameraReady))),
+            e('div',null, e('b',null,'Running: '),   e('span',{className:running?'ok':'err'},String(running))),
+            e('div',null, e('b',null,'Session ID: '),sessionId??'—'),
+            e('div',null, e('b',null,'HF space: '),  e('span',{className:'ok'},HF_SPACE)),
+            e('div',null, e('b',null,'HF token: '),  HF_TOKEN ? e('span',{className:'ok'},'configured') : e('span',{className:'err'},'not set')),
+            e('div',null, e('b',null,'Supabase: '),   SUPABASE_URL?e('span',{className:'ok'},'configured'):e('span',{className:'err'},'not set')),
+            e('div',null, e('b',null,'Buffer: '),     `${bufferLen} / ${WINDOW_FRAMES}`),
+            e('div',null, e('b',null,'History rows: '),history.length),
+            e('hr',{className:'div'}),
+            e('div',{className:'dbg-btns'},
+              e('button',{className:'btn-ghost',onClick:injectDummy},'💉 Inject dummy'),
+              e('button',{className:'btn-ghost',onClick:()=>{setHistory([]);setCurrentPreds(null);}},'🗑 Clear history'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
