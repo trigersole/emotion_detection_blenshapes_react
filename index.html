@@ -62,7 +62,8 @@
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .privacy-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.66rem; font-family:var(--mono); color:var(--accent); background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:20px; padding:2px 8px; margin-left:auto; }
 
-  .control-bar { display:grid; grid-template-columns:1fr auto; gap:0.75rem; margin-bottom:1.25rem; align-items:center; }
+  .control-bar { display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem; }
+  .controls-row { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
   .url-input { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.9rem; color:var(--text); font-family:var(--sans); font-size:0.85rem; outline:none; width:100%; transition:border-color 0.2s; }
   .url-input:focus { border-color:#374151; }
   .url-input::placeholder { color:var(--muted); }
@@ -126,6 +127,9 @@
   .ok  { color:var(--accent); }
   .err { color:var(--red); }
   .dbg-btns { display:flex; gap:0.5rem; margin-top:0.5rem; }
+  .name-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:50; }
+  .name-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.25rem; width:min(680px,92%); }
+  .name-row { display:flex; gap:0.5rem; margin-top:0.75rem; }
   hr.div { border:none; border-top:1px solid var(--border); margin:0.6rem 0; }
 
   ::-webkit-scrollbar { width:4px; }
@@ -194,8 +198,7 @@ const BLENDSHAPE_NAMES = [
 const LABEL_COLS   = ['Boredom','Engagement','Confusion','Frustration'];
 const LABEL_COLORS = { Boredom:'#6B7280', Engagement:'#10B981', Confusion:'#F59E0B', Frustration:'#EF4444' };
 const LABEL_EMOJIS = { Boredom:'😴', Engagement:'🎯', Confusion:'😕', Frustration:'😤' };
-const LEVEL_LABELS = ['Very Low','Low','High','Very High'];
-
+const LEVEL_LABELS = ['Very Low','Low','High','Very High'];const LEVEL_COLORS = ['#6B7280', '#60A5FA', '#10B981', '#F59E0B'];
 // ═══════════════════════════════════════════════════════════════
 // extractBlendshapes()
 // ═══════════════════════════════════════════════════════════════
@@ -253,9 +256,9 @@ function aggregateWindow(frames) {
   return result;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// HF Gradio client — FIX: single declaration, token always passed
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// HF Gradio client â€” FIX: single declaration, token always passed
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 import { Client } from "@gradio/client";
 
 let hfClient = null;
@@ -302,9 +305,9 @@ async function classifyWindow(aggregatedFeatures) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SUPABASE HELPERS
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 async function sbRequest(table, method, body) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
@@ -364,9 +367,10 @@ async function insertPrediction(frameId, sessionId, prediction) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TIMELINE CHART (Plotly)
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function TimelineChart({ history }) {
   const divRef = useRef(null);
   useEffect(() => {
@@ -379,15 +383,17 @@ function TimelineChart({ history }) {
       .filter(lbl => df.some(r => r[lbl] !== undefined))
       .map(lbl => ({
         x: xs,
-        y: df.map(r => r[lbl] ?? null),
-        mode, connectgaps: true,
+        y: df.map(r => r[lbl] !== undefined ? r[lbl] : null),
+        customdata: df.map(r => r[lbl] !== undefined ? LEVEL_LABELS[r[lbl]] : null),
+        mode,
+        connectgaps: true,
         name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
-        line:   { color: LABEL_COLORS[lbl], width: 2.5 },
+        line: { color: LABEL_COLORS[lbl], width: 3 },
         marker: { size: 7, color: LABEL_COLORS[lbl] },
-        hovertemplate: `<b>${lbl}</b><br>%{x|%H:%M:%S}<br>level: %{y}<extra></extra>`,
+        hovertemplate: `<b>${lbl}</b><br>%{x|%H:%M:%S}<br>level: %{customdata}<extra></extra>`,
       }));
     Plotly.react(divRef.current, traces, {
-      margin: { l:0,r:10,t:10,b:10 }, height:255,
+      margin: { l:0,r:10,t:10,b:10 }, height:285,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
       xaxis: { showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', type:'date' },
       yaxis: {
@@ -395,8 +401,15 @@ function TimelineChart({ history }) {
         ticktext:['Very Low','Low','High','Very High'],
         showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa',
       },
-      legend: { orientation:'h', yanchor:'bottom', y:1.02, xanchor:'right', x:1, font:{size:11,color:'#ccc'} },
+      legend: {
+        orientation:'h', yanchor:'bottom', y:1.12, xanchor:'center', x:0.5,
+        font:{size:11,color:'#ccc'},
+        itemclick: 'toggleothers',
+        itemdoubleclick: 'toggle',
+      },
       font: { size:11, color:'#ccc' },
+      hovermode: 'x unified',
+      hoverlabel: { bgcolor: 'rgba(20,20,30,0.95)', bordercolor: '#444', font: { color: '#fff' } },
     }, { displayModeBar:false, responsive:true });
   }, [history]);
 
@@ -405,13 +418,161 @@ function TimelineChart({ history }) {
       React.createElement('div', null,
         '📊 Timeline appears after the first ', React.createElement('b',null,`${WINDOW_SECONDS}s`), ' window',
         React.createElement('br'),
-        React.createElement('span', {style:{fontSize:'0.7rem'}}, `(${WINDOW_FRAMES} frames at ${CAPTURE_FPS} FPS)`)
+        React.createElement('span', {style:{fontSize:'0.7rem'}}, `(${WINDOW_FRAMES} frames at ${CAPTURE_FPS} FPS)`),
+        React.createElement('br'),
+        React.createElement('span', {style:{fontSize:'0.7rem', color:'#aaa'}}, 'Click a legend label to isolate one line when the chart appears.')
       )
     );
   }
   return React.createElement('div', { ref:divRef, style:{width:'100%'} });
 }
 
+
+
+function computeLevelPercentages(history, label) {
+  const rows = history.slice(-5);
+  const counts = [0, 0, 0, 0];
+  for (const row of rows) {
+    const level = row[label];
+    if (level !== undefined && level !== null && level >= 0 && level < 4) {
+      counts[level] += 1;
+    }
+  }
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  return counts.map(count => total ? +(count / total * 100).toFixed(0) : 0);
+}
+
+// Compute overall level percentages across entire history, per label
+function computeOverallLevelPercentages(history) {
+  const result = {};
+  for (const label of LABEL_COLS) {
+    const counts = [0, 0, 0, 0];
+    for (const row of history) {
+      const level = row[label];
+      if (level !== undefined && level !== null && level >= 0 && level < 4) {
+        counts[level] += 1;
+      }
+    }
+    const total = counts.reduce((s, x) => s + x, 0) || 0;
+    result[label] = counts.map(c => total ? +(c / total * 100).toFixed(0) : 0);
+  }
+  return result;
+}
+
+// Overall split chart: stacked bar (4 labels, 4 levels per bar)
+function OverallSplitChart({ history }) {
+  const divRef = useRef(null);
+  useEffect(() => {
+    if (!divRef.current) return;
+    if (!history.length) { Plotly.purge?.(divRef.current); return; }
+    const levelPercentages = computeOverallLevelPercentages(history);
+    const traces = LEVEL_LABELS.map((lvl, li) => ({
+      x: LABEL_COLS,
+      y: LABEL_COLS.map(lbl => levelPercentages[lbl][li]),
+      name: lvl,
+      type: 'bar',
+      marker: { color: LEVEL_COLORS[li] },
+      text: LABEL_COLS.map(lbl => { const pct = levelPercentages[lbl][li]; return pct > 0 ? `${pct}%` : ''; }),
+      textposition: 'inside',
+      hovertemplate: `<b>%{x}</b><br>${lvl}: %{y}%<extra></extra>`,
+    }));
+    Plotly.react(divRef.current, traces, {
+      margin: { l:40, r:10, t:30, b:40 },
+      height: 260,
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      barmode: 'stack',
+      xaxis: { tickfont:{color:'#ccc'} },
+      yaxis: { range:[0,100], tickformat:'%', gridcolor:'rgba(80,80,100,0.2)', color:'#aaa' },
+      font: { size:11, color:'#ccc' },
+      legend: { orientation:'h', yanchor:'bottom', y:1.08, xanchor:'center', x:0.5, font:{size:10,color:'#ccc'} },
+    }, { displayModeBar:false, responsive:true });
+  }, [history]);
+  if (!history.length) {
+    return React.createElement('div', { className:'chart-placeholder' }, '📊 Overall split will appear after predictions');
+  }
+  return React.createElement('div', { ref:divRef, style:{width:'100%'} });
+}
+
+// Aggregate history into N-minute buckets and compute per-level percentages per bucket
+function bucketLevelPercentages(history, label, bucketMinutes = 5) {
+  const ms = bucketMinutes * 60 * 1000;
+  const rows = (history || [])
+    .map(r => ({ ts: new Date(r.predicted_at).getTime(), level: r[label] }))
+    .filter(r => r.level !== undefined && r.level !== null && !isNaN(r.ts));
+  if (!rows.length) return { labels: [], percentagesPerLevel: [[], [], [], []] };
+
+  const minTs = Math.min(...rows.map(r => r.ts));
+  const maxTs = Math.max(...rows.map(r => r.ts));
+  const start = Math.floor(minTs / ms) * ms;
+  const end = Math.ceil((maxTs + 1) / ms) * ms;
+
+  const bucketStarts = [];
+  for (let t = start; t < end; t += ms) bucketStarts.push(t);
+
+  const counts = bucketStarts.map(() => [0, 0, 0, 0]);
+  for (const r of rows) {
+    const idx = Math.floor((r.ts - start) / ms);
+    if (idx >= 0 && idx < counts.length && r.level >= 0 && r.level < 4) counts[idx][r.level] += 1;
+  }
+
+  const labels = bucketStarts.map(bs => {
+    const s = new Date(bs);
+    const e = new Date(bs + ms);
+    const pad = v => String(v).padStart(2, '0');
+    return `${pad(s.getHours())}:${pad(s.getMinutes())}-${pad(e.getHours())}:${pad(e.getMinutes())}`;
+  });
+
+  const percentagesPerLevel = [[], [], [], []];
+  for (const c of counts) {
+    const total = c.reduce((s, x) => s + x, 0) || 0;
+    for (let i = 0; i < 4; i++) percentagesPerLevel[i].push(total ? +(c[i] / total * 100).toFixed(0) : 0);
+  }
+
+  return { labels, percentagesPerLevel };
+}
+
+function LabelSplitCharts({ history }) {
+  const chartRefs = useRef([]);
+
+  useEffect(() => {
+    // For each label, build grouped bar traces across 5-minute buckets
+    LABEL_COLS.forEach((label, idx) => {
+      const div = chartRefs.current[idx];
+      if (!div) return;
+      const { labels, percentagesPerLevel } = bucketLevelPercentages(history, label, 5);
+      if (!labels.length) { Plotly.purge?.(div); return; }
+
+      const traces = LEVEL_LABELS.map((lvl, li) => ({
+        x: labels,
+        y: percentagesPerLevel[li],
+        name: lvl,
+        type: 'bar',
+        marker: { color: LEVEL_COLORS[li] },
+        text: percentagesPerLevel[li].map(v => `${v}%`),
+        textposition: 'auto',
+        hovertemplate: `<b>${label} — ${lvl}</b><br>%{x}: %{y}%<extra></extra>`,
+      }));
+
+      Plotly.react(div, traces, {
+        margin: { l:40, r:10, t:30, b:60 },
+        height: 220,
+        paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+        barmode: 'group',
+        xaxis: { tickfont:{color:'#ccc'}, tickangle:-45, automargin:true },
+        yaxis: { range:[0,100], tickformat:'%', gridcolor:'rgba(80,80,100,0.2)', color:'#aaa' },
+        font: { size:11, color:'#ccc' },
+      }, { displayModeBar:false, responsive:true });
+    });
+  }, [history]);
+
+  return React.createElement('div', { style:{display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0.75rem', marginBottom:'0.75rem'} },
+    LABEL_COLS.map((label, idx) => React.createElement('div', { key:label, className:'panel', style:{padding:'0.6rem'} },
+      React.createElement('div', { className:'panel-header' }, `${LABEL_EMOJIS[label]} ${label} split`),
+      React.createElement('div', { style:{fontSize:'0.72rem', color:'#9ba3c4', marginTop:'0.15rem'} }, '5 Min Wondows'),
+      React.createElement('div', { ref:el => chartRefs.current[idx] = el, style:{width:'100%', minHeight:'160px', marginTop:'0.5rem'} }),
+    ))
+  );
+}
 // Label chips
 function LabelChips({ currentPreds }) {
   return React.createElement('div', { className:'labels-row' },
@@ -430,13 +591,15 @@ function LabelChips({ currentPreds }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MAIN APP
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function App() {
   const [contentUrl,   setContentUrl]   = useState('');
   const [running,      setRunning]      = useState(false);
   const [showGraph,    setShowGraph]    = useState(false);
+  const [userName,     setUserName]     = useState('');
+  const [showNameScreen, setShowNameScreen] = useState(true);
   const [history,      setHistory]      = useState([]);
   const [currentPreds, setCurrentPreds] = useState(null);
   const [frameCount,   setFrameCount]   = useState(0);
@@ -468,7 +631,7 @@ function App() {
     if (!SUPABASE_KEY) missing.push('SUPABASE_KEY');
     if (!HF_TOKEN)     missing.push('HF_TOKEN');
     if (missing.length) setConfigWarn(`Not configured: ${missing.join(', ')} — edit the CONFIG block at the top of the file`);
-  }, []);
+  }, [showGraph]);
 
   // Load MediaPipe FaceLandmarker
   useEffect(() => {
@@ -494,6 +657,7 @@ function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
 
   // RAF capture loop
   const processFrame = useCallback(async () => {
@@ -565,7 +729,6 @@ function App() {
         setCurrentPreds(prediction);
         setWindowCount(c => c + 1);
         setLastPredTime(new Date().toLocaleTimeString());
-        setShowGraph(true);
 
         const ts = new Date().toISOString();
         const row = { predicted_at: ts };
@@ -590,7 +753,6 @@ function App() {
     setFrameCount(0);
     setWindowCount(0);
     setBufferLen(0);
-    setShowGraph(false);
     frameBuffer.current = [];
     throttleRef.current = 0;
 
@@ -612,7 +774,8 @@ function App() {
 
     let sid = null;
     try {
-      sid = await createSession(contentUrl.slice(0, 80) || 'unlabelled', {});
+      const label = userName ? `${userName}${contentUrl ? ' - ' + contentUrl.slice(0,80) : ''}` : (contentUrl.slice(0,80) || 'unlabelled');
+      sid = await createSession(label, { url: contentUrl });
     } catch(e) {
       setLastError('[supabase] createSession: ' + String(e));
     }
@@ -653,12 +816,27 @@ function App() {
 
   const e = React.createElement;
 
+  if (showNameScreen) {
+    return e('div', { className:'name-modal' },
+      e('div', { className:'name-card' },
+        e('h2', null, 'Welcome — enter your name to begin'),
+        e('input', { className:'url-input', type:'text', placeholder:'Your name…', value:userName, onChange:ev=>setUserName(ev.target.value) }),
+        e('div', { className:'name-row' },
+          e('div', { style:{ marginLeft:'auto' } },
+            e('button', { className:'btn-primary', onClick:()=>{ if (userName.trim()) setShowNameScreen(false); } }, 'Next')
+          )
+        )
+      )
+    );
+  }
+
   return e('div', { className:'app' },
 
     e('div', { className:'header' },
       e('div', { className:`status-dot ${running ? 'active' : ''}` }),
       e('h1', null, 'Engagement ', e('span',null,'Learner')),
       e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
+      userName ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, userName) : null,
     ),
 
     configWarn && e('div', { className:'banner warn' }, '⚠ ' + configWarn),
@@ -671,19 +849,23 @@ function App() {
         value:contentUrl, onChange:ev=>setContentUrl(ev.target.value),
         disabled:running,
       }),
-      e('div', { className:'btn-group' },
-        !running
-          ? e('button', {
-              className:'btn-primary', onClick:handleStart,
-              disabled:!modelReady,
-              title: modelReady ? 'Start capture' : 'Loading MediaPipe model…',
-            }, modelReady ? '▶ Start' : '⏳ Loading…')
-          : e('button', { className:'btn-danger', onClick:handleStop }, '⏹ Stop'),
-        e('button', {
-          className:`btn-ghost ${showGraph ? 'lit' : ''}`,
-          onClick:()=>setShowGraph(g=>!g),
-          disabled:!history.length,
-        }, '📊 Graph'),
+      e('div', { className:'controls-row' },
+        e('div', null,
+          !running
+            ? e('button', {
+                className:'btn-primary', onClick:handleStart,
+                disabled:!modelReady,
+                title: modelReady ? 'Start capture' : 'Loading MediaPipe model…',
+              }, modelReady ? '▶ Start' : '⏳ Loading…')
+            : e('button', { className:'btn-danger', onClick:handleStop }, '⏹ Stop')
+        ),
+        e('div', null,
+          e('button', {
+            className:`btn-ghost ${showGraph ? 'lit' : ''}`,
+            onClick:()=>setShowGraph(g=>!g),
+            disabled:false,
+          }, '📊 Graph')
+        ),
       ),
     ),
 
@@ -732,7 +914,13 @@ function App() {
       e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
 
         e('div', { className:'panel' },
-          e('div',{className:'panel-header'},'📈 Engagement timeline'),
+          e('div',{className:'panel-header'},'� Overall engagement split'),
+          e('div',{className:'timeline-section'}, e(OverallSplitChart,{history: showGraph ? history : []})),
+        ),
+
+        e('div', { className:'panel' },
+          e('div',{className:'panel-header'},'�📈 Engagement timeline'),
+          e(LabelSplitCharts, { history: showGraph ? history : [] }),
           e('div',{className:'timeline-section'}, e(TimelineChart,{history: showGraph ? history : []})),
           e('hr',{className:'div'}),
           e(LabelChips, { currentPreds }),
@@ -754,6 +942,7 @@ function App() {
             e('div',{className:'dbg-btns'},
               e('button',{className:'btn-ghost',onClick:injectDummy},'💉 Inject dummy'),
               e('button',{className:'btn-ghost',onClick:()=>{setHistory([]);setCurrentPreds(null);}},'🗑 Clear history'),
+
             ),
           ),
         ),
