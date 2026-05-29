@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engagement Learner 🧠</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18",
+    "react-dom/client": "https://esm.sh/react-dom@18/client",
+    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm",
+    "@gradio/client": "https://esm.sh/@gradio/client"
+  }
+}
+</script>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&display=swap');
+
+  :root {
+    --bg:       #0a0c12;
+    --surface:  #111420;
+    --border:   #1e2235;
+    --accent:   #10B981;
+    --amber:    #F59E0B;
+    --red:      #EF4444;
+    --muted:    #6B7280;
+    --text:     #e2e8f0;
+    --subtext:  #9ba3c4;
+    --mono:     'Space Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+  #root { position: relative; z-index: 1; }
+
+  .app { display: grid; grid-template-rows: auto auto 1fr; min-height: 100vh; padding: 1.25rem 1.5rem; gap: 0; }
+
+  .header { display: flex; align-items: center; gap: 0.75rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+  .header h1 { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+  .header h1 span { color: var(--accent); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; flex-shrink: 0; }
+  .status-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .privacy-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.66rem; font-family:var(--mono); color:var(--accent); background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:20px; padding:2px 8px; margin-left:auto; }
+
+  .control-bar { display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem; }
+  .controls-row { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
+  .url-input { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.9rem; color:var(--text); font-family:var(--sans); font-size:0.85rem; outline:none; width:100%; transition:border-color 0.2s; }
+  .url-input:focus { border-color:#374151; }
+  .url-input::placeholder { color:var(--muted); }
+  .url-input:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-group { display:flex; gap:0.5rem; }
+  button { font-family:var(--mono); font-size:0.78rem; font-weight:700; padding:0.55rem 1rem; border-radius:7px; border:none; cursor:pointer; transition:opacity .15s, transform .1s; white-space:nowrap; }
+  button:active { transform:scale(0.97); }
+  button:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+  .btn-primary { background:var(--accent); color:#000; }
+  .btn-danger  { background:#1f2937; color:var(--red); border:1px solid #374151; }
+  .btn-ghost   { background:#1f2937; color:var(--subtext); border:1px solid #374151; }
+  .btn-ghost.lit { color:var(--amber); border-color:var(--amber); }
+
+  .main-grid { display:grid; grid-template-columns:3fr 2fr; gap:1.25rem; }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .panel-header { padding:0.65rem 1rem; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:0.68rem; color:var(--subtext); letter-spacing:0.08em; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
+  .live-pill { font-size:0.65rem; color:var(--accent); }
+
+  .iframe-wrap { position:relative; padding-bottom:56.25%; height:0; }
+  .iframe-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
+  .iframe-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; height:300px; gap:0.5rem; color:var(--muted); }
+  .iframe-placeholder .icon { font-size:2.2rem; }
+  .iframe-placeholder p { font-size:0.82rem; }
+
+  .webcam-section { padding:0.75rem; }
+  .webcam-wrap { position:relative; width:100%; border-radius:8px; overflow:hidden; background:#000; aspect-ratio:4/3; }
+  .webcam-wrap video, .webcam-wrap canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .webcam-wrap canvas { pointer-events:none; }
+  .webcam-off { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.82rem; }
+  .cam-badge { position:absolute; bottom:8px; left:8px; background:rgba(0,0,0,.7); border-radius:5px; padding:3px 8px; font-family:var(--mono); font-size:0.65rem; color:var(--accent); }
+  .no-face-badge { position:absolute; bottom:8px; right:8px; background:rgba(239,68,68,.15); border:1px solid var(--red); border-radius:5px; padding:2px 6px; font-size:0.65rem; color:var(--red); }
+
+  .progress-wrap { padding:0.6rem 0.75rem 0.5rem; }
+  .progress-bg { background:var(--border); border-radius:4px; height:4px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .3s; }
+  .progress-lbl { font-size:0.67rem; color:var(--muted); margin-top:4px; font-family:var(--mono); }
+
+  .stats-row { display:flex; gap:1rem; padding:0.5rem 1rem; border-top:1px solid var(--border); flex-wrap:wrap; }
+  .stat .val { font-family:var(--mono); font-size:0.95rem; font-weight:700; }
+  .stat .key { font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+
+  .timeline-section { padding:0.75rem; }
+  .chart-placeholder { height:255px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.82rem; text-align:center; line-height:1.9; }
+
+  .labels-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; padding:0.5rem 0.75rem 0.75rem; }
+  .label-chip { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:8px; padding:0.5rem 0.4rem; text-align:center; }
+  .label-chip .emoji { font-size:1.1rem; display:block; margin-bottom:2px; }
+  .label-chip .name  { font-size:0.68rem; color:var(--subtext); }
+  .label-chip .level { font-family:var(--mono); font-size:0.7rem; font-weight:700; margin-top:2px; }
+
+  .banner { padding:0.5rem 1rem; border-radius:7px; font-size:0.8rem; margin-bottom:0.75rem; }
+  .banner.error { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); color:var(--red); }
+  .banner.warn  { background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25); color:var(--amber); }
+
+  details { margin-top:0.75rem; }
+  summary { font-family:var(--mono); font-size:0.7rem; color:var(--muted); cursor:pointer; user-select:none; list-style:none; display:flex; align-items:center; gap:0.4rem; padding:0.4rem 0; }
+  summary::before { content:'▶'; font-size:0.58rem; transition:transform .2s; }
+  details[open] summary::before { transform:rotate(90deg); }
+  .debug-box { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem; margin-top:0.5rem; font-family:var(--mono); font-size:0.7rem; color:var(--subtext); line-height:2; }
+  .ok  { color:var(--accent); }
+  .err { color:var(--red); }
+  .dbg-btns { display:flex; gap:0.5rem; margin-top:0.5rem; }
+  .name-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:50; }
+  .name-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.25rem; width:min(680px,92%); }
+  .name-row { display:flex; gap:0.5rem; margin-top:0.75rem; }
+  hr.div { border:none; border-top:1px solid var(--border); margin:0.6rem 0; }
+
+  /* ── Bar Edit Overlay ── */
+  .bar-edit-overlay {
+    position: absolute;
+    z-index: 20;
+    background: #161928;
+    border: 1px solid #2d3350;
+    border-radius: 10px;
+    padding: 0.9rem 1rem 0.75rem;
+    width: 280px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.1);
+    animation: fadeSlideIn 0.15s ease;
+  }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .bar-edit-overlay h4 {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--subtext);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .bar-edit-overlay h4 button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: 0;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .bar-edit-overlay h4 button:active { transform: none; }
+  .edit-level-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+  }
+  .edit-level-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .edit-level-name {
+    font-size: 0.72rem;
+    color: var(--subtext);
+    width: 64px;
+    flex-shrink: 0;
+  }
+  .edit-level-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  .edit-level-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid #0a0c12;
+  }
+  .edit-level-val {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text);
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .edit-sum-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+  }
+  .edit-sum-val { color: var(--accent); }
+  .edit-sum-val.bad { color: var(--red); }
+  .edit-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+  .edit-actions button {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.72rem;
+  }
+  .edit-actions .btn-save {
+    background: var(--accent);
+    color: #000;
+  }
+  .edit-actions .btn-save:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .edit-actions .btn-cancel {
+    background: #1f2937;
+    color: var(--subtext);
+    border: 1px solid #374151;
+  }
+  .edit-saving-msg {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--accent);
+    margin-top: 0.35rem;
+    text-align: center;
+  }
+  .label-split-wrapper {
+    position: relative;
+  }
+  .chart-click-hint {
+    font-size: 0.65rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    padding: 0 0.75rem 0.3rem;
+    letter-spacing: 0.03em;
+  }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+const HF_TOKEN    = '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';
+const HF_SPACE    = 'Trylio/oelm_xgb';
+
+const SUPABASE_URL = 'https://idrukwbcxfimbuzcdvkk.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkcnVrd2JjeGZpbWJ1emNkdmtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTk5NjMsImV4cCI6MjA5MjMzNTk2M30.xPhQTCrWRbmNWnfgASpS8G9R_S8MpTidxMzvgzbx3VM';
+
+const CAPTURE_FPS    = 5;
+const WINDOW_SECONDS = 10;
+const WINDOW_FRAMES  = CAPTURE_FPS * WINDOW_SECONDS;  // 50
+const MODEL_VERSION  = 'xgb-v1';
+
+// ═══════════════════════════════════════════════════════════════
+// BLENDSHAPE_NAMES
+// ═══════════════════════════════════════════════════════════════
+const BLENDSHAPE_NAMES = [
+  '_neutral',
+  'browDownLeft','browDownRight',
+  'browInnerUp',
+  'browOuterUpLeft','browOuterUpRight',
+  'cheekPuff',
+  'cheekSquintLeft','cheekSquintRight',
+  'eyeBlinkLeft','eyeBlinkRight',
+  'eyeLookDownLeft','eyeLookDownRight',
+  'eyeLookInLeft','eyeLookInRight',
+  'eyeLookOutLeft','eyeLookOutRight',
+  'eyeLookUpLeft','eyeLookUpRight',
+  'eyeSquintLeft','eyeSquintRight',
+  'eyeWideLeft','eyeWideRight',
+  'jawForward',
+  'jawLeft','jawRight',
+  'jawOpen',
+  'mouthClose',
+  'mouthDimpleLeft','mouthDimpleRight',
+  'mouthFrownLeft','mouthFrownRight',
+  'mouthFunnel',
+  'mouthLeft','mouthRight',
+  'mouthLowerDownLeft','mouthLowerDownRight',
+  'mouthPressLeft','mouthPressRight',
+  'mouthPucker',
+  'mouthRollLower','mouthRollUpper',
+  'mouthShrugLower','mouthShrugUpper',
+  'mouthSmileLeft','mouthSmileRight',
+  'mouthStretchLeft','mouthStretchRight',
+  'mouthUpperUpLeft','mouthUpperUpRight',
+  'noseSneerLeft','noseSneerRight',
+];
+
+const LABEL_COLS   = ['Boredom','Engagement','Confusion','Frustration'];
+const LABEL_COLORS = { Boredom:'#6B7280', Engagement:'#10B981', Confusion:'#F59E0B', Frustration:'#EF4444' };
+const LABEL_EMOJIS = { Boredom:'😴', Engagement:'🎯', Confusion:'😕', Frustration:'😤' };
+const LEVEL_LABELS = ['Very Low','Low','High','Very High'];
+const LEVEL_COLORS = ['#6B7280', '#60A5FA', '#10B981', '#F59E0B'];
+
+// ═══════════════════════════════════════════════════════════════
+// extractBlendshapes()
+// ═══════════════════════════════════════════════════════════════
+function extractBlendshapes(result) {
+  if (!result.faceBlendshapes?.length) return null;
+  const cats = result.faceBlendshapes[0].categories;
+  const out = {};
+  for (const cat of cats) {
+    out[cat.categoryName] = parseFloat(cat.score.toFixed(5));
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FEATURE_ORDER — 364 keys from feature_order.pkl
+// ═══════════════════════════════════════════════════════════════
+const FEATURE_ORDER = ["_neutral_mean","_neutral_std","_neutral_min","_neutral_max","_neutral_median","_neutral_skew","_neutral_kurt","browDownLeft_mean","browDownLeft_std","browDownLeft_min","browDownLeft_max","browDownLeft_median","browDownLeft_skew","browDownLeft_kurt","browDownRight_mean","browDownRight_std","browDownRight_min","browDownRight_max","browDownRight_median","browDownRight_skew","browDownRight_kurt","browInnerUp_mean","browInnerUp_std","browInnerUp_min","browInnerUp_max","browInnerUp_median","browInnerUp_skew","browInnerUp_kurt","browOuterUpLeft_mean","browOuterUpLeft_std","browOuterUpLeft_min","browOuterUpLeft_max","browOuterUpLeft_median","browOuterUpLeft_skew","browOuterUpLeft_kurt","browOuterUpRight_mean","browOuterUpRight_std","browOuterUpRight_min","browOuterUpRight_max","browOuterUpRight_median","browOuterUpRight_skew","browOuterUpRight_kurt","cheekPuff_mean","cheekPuff_std","cheekPuff_min","cheekPuff_max","cheekPuff_median","cheekPuff_skew","cheekPuff_kurt","cheekSquintLeft_mean","cheekSquintLeft_std","cheekSquintLeft_min","cheekSquintLeft_max","cheekSquintLeft_median","cheekSquintLeft_skew","cheekSquintLeft_kurt","cheekSquintRight_mean","cheekSquintRight_std","cheekSquintRight_min","cheekSquintRight_max","cheekSquintRight_median","cheekSquintRight_skew","cheekSquintRight_kurt","eyeBlinkLeft_mean","eyeBlinkLeft_std","eyeBlinkLeft_min","eyeBlinkLeft_max","eyeBlinkLeft_median","eyeBlinkLeft_skew","eyeBlinkLeft_kurt","eyeBlinkRight_mean","eyeBlinkRight_std","eyeBlinkRight_min","eyeBlinkRight_max","eyeBlinkRight_median","eyeBlinkRight_skew","eyeBlinkRight_kurt","eyeLookDownLeft_mean","eyeLookDownLeft_std","eyeLookDownLeft_min","eyeLookDownLeft_max","eyeLookDownLeft_median","eyeLookDownLeft_skew","eyeLookDownLeft_kurt","eyeLookDownRight_mean","eyeLookDownRight_std","eyeLookDownRight_min","eyeLookDownRight_max","eyeLookDownRight_median","eyeLookDownRight_skew","eyeLookDownRight_kurt","eyeLookInLeft_mean","eyeLookInLeft_std","eyeLookInLeft_min","eyeLookInLeft_max","eyeLookInLeft_median","eyeLookInLeft_skew","eyeLookInLeft_kurt","eyeLookInRight_mean","eyeLookInRight_std","eyeLookInRight_min","eyeLookInRight_max","eyeLookInRight_median","eyeLookInRight_skew","eyeLookInRight_kurt","eyeLookOutLeft_mean","eyeLookOutLeft_std","eyeLookOutLeft_min","eyeLookOutLeft_max","eyeLookOutLeft_median","eyeLookOutLeft_skew","eyeLookOutLeft_kurt","eyeLookOutRight_mean","eyeLookOutRight_std","eyeLookOutRight_min","eyeLookOutRight_max","eyeLookOutRight_median","eyeLookOutRight_skew","eyeLookOutRight_kurt","eyeLookUpLeft_mean","eyeLookUpLeft_std","eyeLookUpLeft_min","eyeLookUpLeft_max","eyeLookUpLeft_median","eyeLookUpLeft_skew","eyeLookUpLeft_kurt","eyeLookUpRight_mean","eyeLookUpRight_std","eyeLookUpRight_min","eyeLookUpRight_max","eyeLookUpRight_median","eyeLookUpRight_skew","eyeLookUpRight_kurt","eyeSquintLeft_mean","eyeSquintLeft_std","eyeSquintLeft_min","eyeSquintLeft_max","eyeSquintLeft_median","eyeSquintLeft_skew","eyeSquintLeft_kurt","eyeSquintRight_mean","eyeSquintRight_std","eyeSquintRight_min","eyeSquintRight_max","eyeSquintRight_median","eyeSquintRight_skew","eyeSquintRight_kurt","eyeWideLeft_mean","eyeWideLeft_std","eyeWideLeft_min","eyeWideLeft_max","eyeWideLeft_median","eyeWideLeft_skew","eyeWideLeft_kurt","eyeWideRight_mean","eyeWideRight_std","eyeWideRight_min","eyeWideRight_max","eyeWideRight_median","eyeWideRight_skew","eyeWideRight_kurt","jawForward_mean","jawForward_std","jawForward_min","jawForward_max","jawForward_median","jawForward_skew","jawForward_kurt","jawLeft_mean","jawLeft_std","jawLeft_min","jawLeft_max","jawLeft_median","jawLeft_skew","jawLeft_kurt","jawOpen_mean","jawOpen_std","jawOpen_min","jawOpen_max","jawOpen_median","jawOpen_skew","jawOpen_kurt","jawRight_mean","jawRight_std","jawRight_min","jawRight_max","jawRight_median","jawRight_skew","jawRight_kurt","mouthClose_mean","mouthClose_std","mouthClose_min","mouthClose_max","mouthClose_median","mouthClose_skew","mouthClose_kurt","mouthDimpleLeft_mean","mouthDimpleLeft_std","mouthDimpleLeft_min","mouthDimpleLeft_max","mouthDimpleLeft_median","mouthDimpleLeft_skew","mouthDimpleLeft_kurt","mouthDimpleRight_mean","mouthDimpleRight_std","mouthDimpleRight_min","mouthDimpleRight_max","mouthDimpleRight_median","mouthDimpleRight_skew","mouthDimpleRight_kurt","mouthFrownLeft_mean","mouthFrownLeft_std","mouthFrownLeft_min","mouthFrownLeft_max","mouthFrownLeft_median","mouthFrownLeft_skew","mouthFrownLeft_kurt","mouthFrownRight_mean","mouthFrownRight_std","mouthFrownRight_min","mouthFrownRight_max","mouthFrownRight_median","mouthFrownRight_skew","mouthFrownRight_kurt","mouthFunnel_mean","mouthFunnel_std","mouthFunnel_min","mouthFunnel_max","mouthFunnel_median","mouthFunnel_skew","mouthFunnel_kurt","mouthLeft_mean","mouthLeft_std","mouthLeft_min","mouthLeft_max","mouthLeft_median","mouthLeft_skew","mouthLeft_kurt","mouthLowerDownLeft_mean","mouthLowerDownLeft_std","mouthLowerDownLeft_min","mouthLowerDownLeft_max","mouthLowerDownLeft_median","mouthLowerDownLeft_skew","mouthLowerDownLeft_kurt","mouthLowerDownRight_mean","mouthLowerDownRight_std","mouthLowerDownRight_min","mouthLowerDownRight_max","mouthLowerDownRight_median","mouthLowerDownRight_skew","mouthLowerDownRight_kurt","mouthPressLeft_mean","mouthPressLeft_std","mouthPressLeft_min","mouthPressLeft_max","mouthPressLeft_median","mouthPressLeft_skew","mouthPressLeft_kurt","mouthPressRight_mean","mouthPressRight_std","mouthPressRight_min","mouthPressRight_max","mouthPressRight_median","mouthPressRight_skew","mouthPressRight_kurt","mouthPucker_mean","mouthPucker_std","mouthPucker_min","mouthPucker_max","mouthPucker_median","mouthPucker_skew","mouthPucker_kurt","mouthRight_mean","mouthRight_std","mouthRight_min","mouthRight_max","mouthRight_median","mouthRight_skew","mouthRight_kurt","mouthRollLower_mean","mouthRollLower_std","mouthRollLower_min","mouthRollLower_max","mouthRollLower_median","mouthRollLower_skew","mouthRollLower_kurt","mouthRollUpper_mean","mouthRollUpper_std","mouthRollUpper_min","mouthRollUpper_max","mouthRollUpper_median","mouthRollUpper_skew","mouthRollUpper_kurt","mouthShrugLower_mean","mouthShrugLower_std","mouthShrugLower_min","mouthShrugLower_max","mouthShrugLower_median","mouthShrugLower_skew","mouthShrugLower_kurt","mouthShrugUpper_mean","mouthShrugUpper_std","mouthShrugUpper_min","mouthShrugUpper_max","mouthShrugUpper_median","mouthShrugUpper_skew","mouthShrugUpper_kurt","mouthSmileLeft_mean","mouthSmileLeft_std","mouthSmileLeft_min","mouthSmileLeft_max","mouthSmileLeft_median","mouthSmileLeft_skew","mouthSmileLeft_kurt","mouthSmileRight_mean","mouthSmileRight_std","mouthSmileRight_min","mouthSmileRight_max","mouthSmileRight_median","mouthSmileRight_skew","mouthSmileRight_kurt","mouthStretchLeft_mean","mouthStretchLeft_std","mouthStretchLeft_min","mouthStretchLeft_max","mouthStretchLeft_median","mouthStretchLeft_skew","mouthStretchLeft_kurt","mouthStretchRight_mean","mouthStretchRight_std","mouthStretchRight_min","mouthStretchRight_max","mouthStretchRight_median","mouthStretchRight_skew","mouthStretchRight_kurt","mouthUpperUpLeft_mean","mouthUpperUpLeft_std","mouthUpperUpLeft_min","mouthUpperUpLeft_max","mouthUpperUpLeft_median","mouthUpperUpLeft_skew","mouthUpperUpLeft_kurt","mouthUpperUpRight_mean","mouthUpperUpRight_std","mouthUpperUpRight_min","mouthUpperUpRight_max","mouthUpperUpRight_median","mouthUpperUpRight_skew","mouthUpperUpRight_kurt","noseSneerLeft_mean","noseSneerLeft_std","noseSneerLeft_min","noseSneerLeft_max","noseSneerLeft_median","noseSneerLeft_skew","noseSneerLeft_kurt","noseSneerRight_mean","noseSneerRight_std","noseSneerRight_min","noseSneerRight_max","noseSneerRight_median","noseSneerRight_skew","noseSneerRight_kurt"];
+
+// ═══════════════════════════════════════════════════════════════
+// aggregateWindow()
+// ═══════════════════════════════════════════════════════════════
+function aggregateWindow(frames) {
+  if (!frames.length) return null;
+  const result = {};
+  for (const name of BLENDSHAPE_NAMES) {
+    const vals = frames.map(f => f[name] ?? 0);
+    const n = vals.length;
+    const mean = vals.reduce((s, v) => s + v, 0) / n;
+    const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance);
+    let min = vals[0], max = vals[0];
+    for (const v of vals) { if (v < min) min = v; if (v > max) max = v; }
+    const sorted = [...vals].sort((a, b) => a - b);
+    const mid = n % 2 === 0
+      ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+      : sorted[Math.floor(n / 2)];
+    const skew = std === 0 ? 0 : vals.reduce((s, v) => s + ((v - mean) / std) ** 3, 0) / n;
+    const kurt = std === 0 ? 0 : (vals.reduce((s, v) => s + ((v - mean) / std) ** 4, 0) / n) - 3;
+    result[`${name}_mean`]   = parseFloat(mean.toFixed(5));
+    result[`${name}_std`]    = parseFloat(std.toFixed(5));
+    result[`${name}_min`]    = parseFloat(min.toFixed(5));
+    result[`${name}_max`]    = parseFloat(max.toFixed(5));
+    result[`${name}_median`] = parseFloat(mid.toFixed(5));
+    result[`${name}_skew`]   = parseFloat(skew.toFixed(5));
+    result[`${name}_kurt`]   = parseFloat(kurt.toFixed(5));
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HF Gradio client
+// ═══════════════════════════════════════════════════════════════
+import { Client } from "@gradio/client";
+let hfClient = null;
+async function getHFClient() {
+  if (!hfClient) {
+    try { hfClient = await Client.connect(HF_SPACE, { hf_token: HF_TOKEN }); }
+    catch (err) { hfClient = null; throw err; }
+  }
+  return hfClient;
+}
+async function classifyWindow(aggregatedFeatures) {
+  try {
+    const client = await getHFClient();
+    const orderedFeatures = {};
+    for (const k of FEATURE_ORDER) orderedFeatures[k] = aggregatedFeatures[k] ?? 0;
+    const result = await client.predict("/predict", { agg_features: orderedFeatures });
+    const raw = result?.data?.[0] ?? null;
+    if (!raw) { console.warn('[HF] Empty response:', result); return null; }
+    return raw;
+  } catch (err) {
+    console.error('[HF] classify error:', err);
+    hfClient = null;
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function sbRequest(table, method, body, params) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  let url = `${SUPABASE_URL}/rest/v1/${table}`;
+  if (params) url += '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Supabase ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function createSession(label = '', metadata = {}) {
+  const data = await sbRequest('sessions', 'POST', { label, metadata });
+  return data?.[0]?.id ?? null;
+}
+
+async function insertFrame(sessionId, features, faceDetected = true) {
+  if (!sessionId) return null;
+  const data = await sbRequest('blendshape_frames', 'POST', {
+    session_id: sessionId, features, face_detected: faceDetected,
+  });
+  return data?.[0]?.id ?? null;
+}
+
+async function insertPrediction(frameId, sessionId, prediction) {
+  if (!sessionId) return;
+  const labelsFlat = {}, probsFlat = {};
+  let maxConf = 0;
+  for (const lbl of LABEL_COLS) {
+    if (!prediction[lbl]) continue;
+    labelsFlat[lbl] = prediction[lbl].label;
+    probsFlat[lbl]  = prediction[lbl].probabilities;
+    const conf = prediction[lbl].probabilities[prediction[lbl].label] ?? 0;
+    if (conf > maxConf) maxConf = conf;
+  }
+  await sbRequest('emotion_predictions', 'POST', {
+    frame_id: frameId ?? null,
+    session_id: sessionId,
+    label: JSON.stringify(labelsFlat),
+    confidence: parseFloat(maxConf.toFixed(5)),
+    probabilities: probsFlat,
+    model_version: MODEL_VERSION,
+  });
+}
+
+// ── NEW: Save manual override to Supabase ──────────────────────
+// Stores in a `manual_overrides` table: session_id, bucket_label, label_col,
+// level_percentages (json), overridden_at.
+// If the table doesn't exist yet it'll throw — gracefully caught in the UI.
+async function saveManualOverride(sessionId, bucketLabel, labelCol, levelPercentages) {
+  return sbRequest('manual_overrides', 'POST', {
+    session_id:        sessionId,
+    bucket_label:      bucketLabel,
+    label_col:         labelCol,
+    level_percentages: levelPercentages,  // array [veryLow%, low%, high%, veryHigh%]
+    overridden_at:     new Date().toISOString(),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIMELINE CHART (Plotly)
+// ═══════════════════════════════════════════════════════════════
+function TimelineChart({ history, visibleLabels }) {
+  const divRef = useRef(null);
+  useEffect(() => {
+    if (!divRef.current) return;
+    if (!history.length) { Plotly.purge?.(divRef.current); return; }
+    const df = [...history].sort((a,b) => new Date(a.predicted_at)-new Date(b.predicted_at));
+    const xs = df.map(r => r.predicted_at);
+    const mode = df.length < 2 ? 'markers' : 'lines+markers';
+    const traces = LABEL_COLS
+      .filter(lbl => (visibleLabels?.[lbl] ?? true) && df.some(r => r[lbl] !== undefined))
+      .map(lbl => ({
+        x: xs,
+        y: df.map(r => r[lbl] !== undefined ? r[lbl] : null),
+        customdata: df.map(r => r[lbl] !== undefined ? LEVEL_LABELS[r[lbl]] : null),
+        mode, connectgaps: true,
+        name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
+        line: { color: LABEL_COLORS[lbl], width: 3 },
+        marker: { size: 7, color: LABEL_COLORS[lbl] },
+        hovertemplate: `<b>${lbl}</b><br>%{x|%H:%M:%S}<br>level: %{customdata}<extra></extra>`,
+      }));
+    Plotly.react(divRef.current, traces, {
+      margin: { l:60,r:10,t:10,b:10 }, height:360,
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      xaxis: { showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', type:'date' },
+      yaxis: {
+        range:[-0.5,3.5], tickmode:'array', tickvals:[0,1,2,3],
+        ticktext:['Very Low','Low','High','Very High'],
+        showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa',
+        zeroline:false, tickfont:{size:11,color:'#ccc'},
+        title:{text:'Engagement Level',font:{size:12,color:'#ccc'}},
+      },
+      legend: { orientation:'h', yanchor:'bottom', y:1.12, xanchor:'center', x:0.5, font:{size:11,color:'#ccc'}, itemclick:'toggleothers', itemdoubleclick:'toggle' },
+      font: { size:11, color:'#ccc' },
+      hovermode: 'x unified',
+      hoverlabel: { bgcolor:'rgba(20,20,30,0.95)', bordercolor:'#444', font:{color:'#fff'} },
+    }, { displayModeBar:false, responsive:true });
+  }, [history, visibleLabels]);
+
+  if (!history.length) {
+    return React.createElement('div', { className:'chart-placeholder' },
+      React.createElement('div', null,
+        '📊 Timeline appears after the first ', React.createElement('b',null,`${WINDOW_SECONDS}s`), ' window',
+        React.createElement('br'),
+        React.createElement('span', {style:{fontSize:'0.7rem'}}, `(${WINDOW_FRAMES} frames at ${CAPTURE_FPS} FPS)`),
+      )
+    );
+  }
+  return React.createElement('div', { ref:divRef, style:{width:'100%'} });
+}
+
+function computeOverallLevelPercentages(history) {
+  const result = {};
+  for (const label of LABEL_COLS) {
+    const counts = [0, 0, 0, 0];
+    for (const row of history) {
+      const level = row[label];
+      if (level !== undefined && level !== null && level >= 0 && level < 4) counts[level] += 1;
+    }
+    const total = counts.reduce((s, x) => s + x, 0) || 0;
+    result[label] = counts.map(c => total ? +(c / total * 100).toFixed(0) : 0);
+  }
+  return result;
+}
+
+function OverallSplitChart({ history }) {
+  const divRef = useRef(null);
+  useEffect(() => {
+    if (!divRef.current) return;
+    if (!history.length) { Plotly.purge?.(divRef.current); return; }
+    const levelPercentages = computeOverallLevelPercentages(history);
+    const traces = LEVEL_LABELS.map((lvl, li) => ({
+      x: LABEL_COLS,
+      y: LABEL_COLS.map(lbl => levelPercentages[lbl][li]),
+      name: lvl, type: 'bar',
+      marker: { color: LEVEL_COLORS[li] },
+      text: LABEL_COLS.map(lbl => { const pct = levelPercentages[lbl][li]; return pct > 0 ? `${pct}%` : ''; }),
+      textposition: 'inside',
+      hovertemplate: `<b>%{x}</b><br>${lvl}: %{y}%<extra></extra>`,
+    }));
+    Plotly.react(divRef.current, traces, {
+      margin:{l:40,r:10,t:30,b:40}, height:260,
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      barmode:'stack',
+      xaxis: { tickfont:{color:'#ccc'} },
+      yaxis: { range:[0,100], ticksuffix:'%', gridcolor:'rgba(80,80,100,0.2)', color:'#aaa' },
+      font:{size:11,color:'#ccc'},
+      legend:{ orientation:'h', yanchor:'bottom', y:1.08, xanchor:'center', x:0.5, font:{size:10,color:'#ccc'} },
+    }, { displayModeBar:false, responsive:true });
+  }, [history]);
+  if (!history.length) return React.createElement('div', { className:'chart-placeholder' }, '📊 Overall split will appear after predictions');
+  return React.createElement('div', { ref:divRef, style:{width:'100%'} });
+}
+
+function bucketLevelPercentages(history, label, bucketMinutes = 5) {
+  const ms = bucketMinutes * 60 * 1000;
+  const rows = (history || [])
+    .map(r => ({ ts: new Date(r.predicted_at).getTime(), level: r[label] }))
+    .filter(r => r.level !== undefined && r.level !== null && !isNaN(r.ts));
+  if (!rows.length) return { labels: [], percentagesPerLevel: [[], [], [], []] };
+  const minTs = Math.min(...rows.map(r => r.ts));
+  const maxTs = Math.max(...rows.map(r => r.ts));
+  const start = Math.floor(minTs / ms) * ms;
+  const end   = Math.ceil((maxTs + 1) / ms) * ms;
+  const bucketStarts = [];
+  for (let t = start; t < end; t += ms) bucketStarts.push(t);
+  const counts = bucketStarts.map(() => [0, 0, 0, 0]);
+  for (const r of rows) {
+    const idx = Math.floor((r.ts - start) / ms);
+    if (idx >= 0 && idx < counts.length && r.level >= 0 && r.level < 4) counts[idx][r.level] += 1;
+  }
+  const labels = bucketStarts.map(bs => {
+    const s = new Date(bs), e = new Date(bs + ms);
+    const pad = v => String(v).padStart(2, '0');
+    return `${pad(s.getHours())}:${pad(s.getMinutes())}-${pad(e.getHours())}:${pad(e.getMinutes())}`;
+  });
+  const percentagesPerLevel = [[], [], [], []];
+  for (const c of counts) {
+    const total = c.reduce((s, x) => s + x, 0) || 0;
+    for (let i = 0; i < 4; i++) percentagesPerLevel[i].push(total ? +(c[i] / total * 100).toFixed(0) : 0);
+  }
+  return { labels, percentagesPerLevel };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BAR EDIT PANEL — shown on bar click
+// ═══════════════════════════════════════════════════════════════
+function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sessionId }) {
+  // initialValues: array of 4 numbers summing to 100
+  const [vals, setVals] = useState([...initialValues]);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  const sum = vals.reduce((s, v) => s + v, 0);
+  const sumOk = Math.abs(sum - 100) <= 1; // allow 1% rounding tolerance
+
+  // When a slider changes: adjust the last "free" other slider to keep sum = 100
+  function handleChange(idx, newVal) {
+    const clamped = Math.max(0, Math.min(100, newVal));
+    const next = [...vals];
+    next[idx] = clamped;
+    // Distribute the remainder proportionally across other sliders
+    const others = next.map((v, i) => i === idx ? null : v);
+    const otherSum = others.reduce((s, v) => s + (v ?? 0), 0);
+    const remainder = 100 - clamped;
+    if (otherSum === 0) {
+      // Spread evenly
+      const share = Math.round(remainder / 3);
+      let leftover = remainder;
+      for (let i = 0; i < 4; i++) {
+        if (i === idx) continue;
+        if (leftover <= 0) { next[i] = 0; continue; }
+        const v = i === [0,1,2,3].filter(x=>x!==idx).slice(-1)[0] ? leftover : share;
+        next[i] = Math.min(v, leftover);
+        leftover -= next[i];
+      }
+    } else {
+      let assigned = 0;
+      const otherIdxs = [0,1,2,3].filter(i => i !== idx);
+      for (let j = 0; j < otherIdxs.length; j++) {
+        const i = otherIdxs[j];
+        if (j === otherIdxs.length - 1) {
+          next[i] = Math.max(0, remainder - assigned);
+        } else {
+          const proportion = vals[i] / (otherSum || 1);
+          const share = Math.round(remainder * proportion);
+          next[i] = Math.max(0, share);
+          assigned += next[i];
+        }
+      }
+    }
+    setVals(next);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      await saveManualOverride(sessionId, bucketLabel, label, vals);
+      setSaveMsg('✓ Saved to Supabase');
+      setTimeout(() => { setSaveMsg(''); onSave(vals); }, 1000);
+    } catch (err) {
+      setSaveMsg('⚠ ' + String(err).slice(0, 80));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const e = React.createElement;
+  return e('div', { className:'bar-edit-overlay' },
+    e('h4', null,
+      `✏️ Edit · ${label} · ${bucketLabel}`,
+      e('button', { onClick: onClose, title:'Close' }, '✕')
+    ),
+    LEVEL_LABELS.map((lvl, i) =>
+      e('div', { key:lvl, className:'edit-level-row' },
+        e('div', { className:'edit-level-dot', style:{ background: LEVEL_COLORS[i] } }),
+        e('span', { className:'edit-level-name' }, lvl),
+        e('input', {
+          type:'range', min:0, max:100, step:1,
+          className:'edit-level-slider',
+          value: vals[i],
+          style: { '--thumb-color': LEVEL_COLORS[i] },
+          onChange: ev => handleChange(i, parseInt(ev.target.value, 10)),
+        }),
+        e('span', { className:'edit-level-val' }, `${vals[i]}%`),
+      )
+    ),
+    e('div', { className:'edit-sum-row' },
+      e('span', { style:{color:'var(--muted)'} }, 'Sum'),
+      e('span', { className:`edit-sum-val${sumOk ? '' : ' bad'}` }, `${sum}% ${sumOk ? '✓' : '— must be 100%'}`),
+    ),
+    e('div', { className:'edit-actions' },
+      e('button', { className:'btn-cancel edit-actions', onClick:onClose }, 'Cancel'),
+      e('button', {
+        className:'btn-save',
+        disabled: !sumOk || saving,
+        onClick: handleSave,
+      }, saving ? 'Saving…' : 'Save'),
+    ),
+    saveMsg ? e('div', { className:'edit-saving-msg' }, saveMsg) : null,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LabelSplitCharts — with bar click → edit overlay
+// ═══════════════════════════════════════════════════════════════
+function LabelSplitCharts({ history, sessionId, onHistoryOverride }) {
+  const chartRefs    = useRef([]);
+  const wrapperRefs  = useRef([]);
+  // editState: { labelIdx, bucketIdx, bucketLabel, initialValues }
+  const [editState, setEditState] = useState(null);
+  // manualOverrides: { "label:bucket": [v0,v1,v2,v3] }
+  const [overrides, setOverrides]  = useState({});
+
+  // Build chart data for label at idx
+  function getChartData(label) {
+    const base = bucketLevelPercentages(history, label, 5);
+    // Apply any manual overrides
+    const ppl = base.percentagesPerLevel.map(arr => [...arr]);
+    base.labels.forEach((bl, bi) => {
+      const key = `${label}:${bl}`;
+      if (overrides[key]) {
+        for (let li = 0; li < 4; li++) ppl[li][bi] = overrides[key][li];
+      }
+    });
+    return { ...base, percentagesPerLevel: ppl };
+  }
+
+  function renderChart(label, idx, chartData) {
+    const div = chartRefs.current[idx];
+    if (!div) return;
+    const { labels, percentagesPerLevel } = chartData;
+    if (!labels.length) { Plotly.purge?.(div); return; }
+
+    const traces = LEVEL_LABELS.map((lvl, li) => ({
+      x: labels,
+      y: percentagesPerLevel[li],
+      name: lvl, type: 'bar',
+      marker: { color: LEVEL_COLORS[li] },
+      text: percentagesPerLevel[li].map(v => `${v}%`),
+      textposition: 'auto',
+      hovertemplate: `<b>${label} — ${lvl}</b><br>%{x}: %{y}%<extra></extra>`,
+    }));
+
+    Plotly.react(div, traces, {
+      margin:{l:40,r:10,t:30,b:60}, height:220,
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      barmode:'stack',
+      xaxis:{ tickfont:{color:'#ccc'}, tickangle:-45, automargin:true },
+      yaxis:{ range:[0,100], ticksuffix:'%', gridcolor:'rgba(80,80,100,0.2)', color:'#aaa' },
+      font:{size:11, color:'#ccc'},
+    }, { displayModeBar:false, responsive:true });
+
+    // Attach click handler
+    div.on('plotly_click', (data) => {
+      const pt = data.points?.[0];
+      if (!pt) return;
+      const bucketLabel = pt.x;
+      const bucketIdx   = pt.pointIndex;
+      const chartData2  = getChartData(label);
+      const initialValues = LEVEL_LABELS.map((_, li) => chartData2.percentagesPerLevel[li][bucketIdx] ?? 0);
+      setEditState({ labelIdx: idx, label, bucketIdx, bucketLabel, initialValues });
+    });
+  }
+
+  useEffect(() => {
+    LABEL_COLS.forEach((label, idx) => renderChart(label, idx, getChartData(label)));
+  }, [history, overrides]);
+
+  function handleSave(newVals) {
+    if (!editState) return;
+    const { label, bucketLabel } = editState;
+    const key = `${label}:${bucketLabel}`;
+    setOverrides(prev => ({ ...prev, [key]: newVals }));
+    setEditState(null);
+  }
+
+  const e = React.createElement;
+  return e('div', null,
+    e('div', {
+      style:{display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'0.75rem', marginBottom:'0.75rem'}
+    },
+      LABEL_COLS.map((label, idx) => {
+        const isEditing = editState?.labelIdx === idx;
+        return e('div', { key:label, style:{ position:'relative' } },
+          e('div', { className:'panel', style:{padding:'0.6rem'} },
+            e('div', { className:'panel-header' }, `${LABEL_EMOJIS[label]} ${label} split`),
+            e('div', { style:{fontSize:'0.72rem', color:'#9ba3c4', marginTop:'0.15rem', padding:'0 0.1rem'} }, '5 Min Windows'),
+            e('div', { className:'chart-click-hint' }, '💡 Click a bar to edit values'),
+            e('div', {
+              ref: el => chartRefs.current[idx] = el,
+              style:{width:'100%', minHeight:'160px', marginTop:'0.5rem', cursor:'pointer'},
+            }),
+          ),
+          // Edit overlay — positioned above the card
+          isEditing ? e('div', {
+            style:{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%)', zIndex:30, width:'290px' }
+          },
+            e(BarEditPanel, {
+              label,
+              bucketLabel: editState.bucketLabel,
+              initialValues: editState.initialValues,
+              sessionId,
+              onSave: handleSave,
+              onClose: () => setEditState(null),
+            })
+          ) : null,
+        );
+      })
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════
+function App() {
+  const [contentUrl,   setContentUrl]   = useState('');
+  const [running,      setRunning]      = useState(false);
+  const [paused,       setPaused]       = useState(false);
+  const [userName,     setUserName]     = useState('');
+  const [showNameScreen, setShowNameScreen] = useState(true);
+  const [history,      setHistory]      = useState([]);
+  const [currentPreds, setCurrentPreds] = useState(null);
+  const [frameCount,   setFrameCount]   = useState(0);
+  const [windowCount,  setWindowCount]  = useState(0);
+  const [sessionId,    setSessionId]    = useState(null);
+  const [lastPredTime, setLastPredTime] = useState(null);
+  const [lastError,    setLastError]    = useState(null);
+  const [noFace,       setNoFace]       = useState(false);
+  const [cameraReady,  setCameraReady]  = useState(false);
+  const [bufferLen,    setBufferLen]    = useState(0);
+  const [modelReady,   setModelReady]   = useState(false);
+  const [configWarn,   setConfigWarn]   = useState('');
+  const [checkedLabels, setCheckedLabels] = useState({Boredom:true, Engagement:true, Confusion:true, Frustration:true});
+
+  const videoRef     = useRef(null);
+  const canvasRef    = useRef(null);
+  const landmarkerRef= useRef(null);
+  const streamRef    = useRef(null);
+  const frameBuffer  = useRef([]);
+  const throttleRef  = useRef(0);
+  const runningRef   = useRef(false);
+  const pausedRef    = useRef(false);
+  const rafRef       = useRef(null);
+  const drawUtils    = useRef(null);
+  const sessionRef   = useRef(null);
+
+  useEffect(() => {
+    const missing = [];
+    if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!SUPABASE_KEY) missing.push('SUPABASE_KEY');
+    if (!HF_TOKEN)     missing.push('HF_TOKEN');
+    if (missing.length) setConfigWarn(`Not configured: ${missing.join(', ')} — edit the CONFIG block`);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+        );
+        const lm = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate: 'GPU',
+          },
+          outputFaceBlendshapes: true,
+          runningMode: 'VIDEO',
+          numFaces: 1,
+        });
+        if (!cancelled) { landmarkerRef.current = lm; setModelReady(true); }
+      } catch(e) {
+        if (!cancelled) setLastError('MediaPipe load failed: ' + e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const processFrame = useCallback(async () => {
+    if (!runningRef.current) return;
+    const video = videoRef.current, canvas = canvasRef.current, landmarker = landmarkerRef.current;
+    if (!video || !canvas || !landmarker || video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(processFrame); return;
+    }
+    const now = performance.now();
+    if (now - throttleRef.current < 1000 / CAPTURE_FPS) {
+      rafRef.current = requestAnimationFrame(processFrame); return;
+    }
+    throttleRef.current = now;
+    let result;
+    try { result = landmarker.detectForVideo(video, now); }
+    catch { rafRef.current = requestAnimationFrame(processFrame); return; }
+
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (result.faceLandmarks?.length && drawUtils.current) {
+      for (const lms of result.faceLandmarks)
+        drawUtils.current.drawConnectors(lms, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color:'#0f4', lineWidth:0.5, opacity:0.2 });
+    }
+
+    const features = extractBlendshapes(result);
+    if (features === null) { setNoFace(true); rafRef.current = requestAnimationFrame(processFrame); return; }
+    setNoFace(false);
+    setFrameCount(c => c + 1);
+    frameBuffer.current.push(features);
+    const len = frameBuffer.current.length;
+    setBufferLen(len);
+
+    if (len >= WINDOW_FRAMES) {
+      const snapshot = frameBuffer.current.slice();
+      frameBuffer.current = []; setBufferLen(0);
+      const agg = aggregateWindow(snapshot);
+      if (!agg) { rafRef.current = requestAnimationFrame(processFrame); return; }
+      let prediction = null;
+      try { prediction = await classifyWindow(agg); }
+      catch(e) { setLastError('[HF] ' + String(e)); }
+      if (prediction) {
+        setCurrentPreds(prediction);
+        setWindowCount(c => c + 1);
+        setLastPredTime(new Date().toLocaleTimeString());
+        const ts = new Date().toISOString();
+        const row = { predicted_at: ts };
+        for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
+        setHistory(h => [...h.slice(-179), row]);
+        insertPrediction(null, sessionRef.current, prediction)
+          .catch(e => setLastError('[supabase] insertPrediction: ' + String(e)));
+      }
+    }
+    rafRef.current = requestAnimationFrame(processFrame);
+  }, []);
+
+  const handleStart = useCallback(async () => {
+    if (!modelReady) { setLastError('MediaPipe model still loading.'); return; }
+    setLastError(null); setHistory([]); setCurrentPreds(null);
+    setFrameCount(0); setWindowCount(0); setBufferLen(0);
+    frameBuffer.current = []; throttleRef.current = 0;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
+    catch(e) { setLastError('Camera access denied: ' + e.message); return; }
+    streamRef.current = stream;
+    videoRef.current.srcObject = stream;
+    await videoRef.current.play();
+    setCameraReady(true);
+    if (canvasRef.current) drawUtils.current = new DrawingUtils(canvasRef.current.getContext('2d'));
+    let sid = null;
+    try {
+      const label = userName ? `${userName}${contentUrl ? ' - ' + contentUrl.slice(0,80) : ''}` : (contentUrl.slice(0,80) || 'unlabelled');
+      sid = await createSession(label, { url: contentUrl });
+    } catch(e) { setLastError('[supabase] createSession: ' + String(e)); }
+    setSessionId(sid); sessionRef.current = sid;
+    runningRef.current = true; pausedRef.current = false;
+    setRunning(true); setPaused(false);
+    rafRef.current = requestAnimationFrame(processFrame);
+  }, [modelReady, contentUrl, processFrame]);
+
+  const handlePauseToggle = useCallback(() => {
+    if (!running) return;
+    if (paused) {
+      pausedRef.current = false; setPaused(false);
+      runningRef.current = true;
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+    pausedRef.current = true; setPaused(true);
+    runningRef.current = false;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  }, [running, paused, processFrame]);
+
+  const handleStop = useCallback(() => {
+    runningRef.current = false; pausedRef.current = false;
+    setRunning(false); setPaused(false);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraReady(false); setNoFace(false);
+  }, []);
+
+  useEffect(() => () => handleStop(), []);
+
+  const injectDummy = useCallback(() => {
+    const dummy = {};
+    for (const lbl of LABEL_COLS) {
+      const label = Math.floor(Math.random() * 4);
+      dummy[lbl] = { label, probabilities: Array.from({length:4}, () => +Math.random().toFixed(4)) };
+    }
+    const row = { predicted_at: new Date().toISOString() };
+    for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
+    setHistory(h => [...h, row]);
+    setCurrentPreds(dummy);
+    setWindowCount(c => c + 1);
+  }, []);
+
+  const e = React.createElement;
+
+  if (showNameScreen) {
+    return e('div', { className:'name-modal' },
+      e('div', { className:'name-card' },
+        e('h2', null, 'Welcome — enter your name to begin'),
+        e('input', { className:'url-input', type:'text', placeholder:'Your name…', value:userName, onChange:ev=>setUserName(ev.target.value) }),
+        e('div', { className:'name-row' },
+          e('div', { style:{ marginLeft:'auto' } },
+            e('button', { className:'btn-primary', onClick:()=>{ if (userName.trim()) setShowNameScreen(false); } }, 'Next')
+          )
+        )
+      )
+    );
+  }
+
+  return e('div', { className:'app' },
+
+    e('div', { className:'header' },
+      e('div', { className:`status-dot ${running ? 'active' : ''}` }),
+      e('h1', null, 'Engagement ', e('span',null,'Learner')),
+      e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
+      userName ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, userName) : null,
+    ),
+
+    configWarn && e('div', { className:'banner warn' }, '⚠ ' + configWarn),
+    lastError  && e('div', { className:'banner error' }, '⚠ ' + lastError),
+
+    e('div', { className:'control-bar' },
+      e('input', {
+        className:'url-input', type:'text',
+        placeholder:'Paste a lecture / video URL…',
+        value:contentUrl, onChange:ev=>setContentUrl(ev.target.value),
+        disabled:running,
+      }),
+      e('div', { className:'controls-row' },
+        e('div', null,
+          !running
+            ? e('button', { className:'btn-primary', onClick:handleStart, disabled:!modelReady,
+                title: modelReady ? 'Start capture' : 'Loading MediaPipe model…' },
+                modelReady ? '▶ Start' : '⏳ Loading…')
+            : e('button', { className:'btn-danger', onClick:handleStop }, '⏹ Stop')
+        ),
+        e('div', null,
+          e('button', {
+            className:`btn-ghost ${paused ? 'lit' : ''}`,
+            onClick:handlePauseToggle, disabled:!running,
+          }, paused ? '▶ Resume' : '⏸ Pause and Reflect')
+        ),
+      ),
+    ),
+
+    e('div', { className:'main-grid' },
+
+      e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
+        e('div', { className:'panel' },
+          e('div', { className:'panel-header' },
+            e('span',null,'🎬 Content'),
+            contentUrl && e('span',{style:{color:'var(--muted)',fontSize:'0.63rem',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},contentUrl),
+          ),
+          contentUrl
+            ? e('div',{className:'iframe-wrap'}, e('iframe',{src:contentUrl,allow:'autoplay; encrypted-media',allowFullScreen:true,sandbox:'allow-scripts allow-same-origin allow-forms allow-popups'}))
+            : e('div',{className:'iframe-placeholder'}, e('div',{className:'icon'},'🎬'), e('p',null,'Paste a URL above to load content')),
+        ),
+
+        e('div', { className:'panel' },
+          e('div', { className:'panel-header' },
+            e('span',null,'📷 Face capture'),
+            running && e('span',{className:'live-pill'},'● LIVE — blendshape dicts only, no video leaves this device'),
+          ),
+          e('div', { className:'webcam-section' },
+            e('div', { className:'webcam-wrap' },
+              e('video', { ref:videoRef, muted:true, playsInline:true, style:{display:cameraReady?'block':'none'} }),
+              e('canvas', { ref:canvasRef }),
+              !cameraReady && e('div',{className:'webcam-off'}, running ? '⏳ Starting camera…' : 'Camera off'),
+              cameraReady && e('div',{className:'cam-badge'}, `${frameCount} frames`),
+              noFace && e('div',{className:'no-face-badge'},'No face detected'),
+            ),
+            e('div', { className:'progress-wrap' },
+              e('div',{className:'progress-bg'}, e('div',{className:'progress-fill',style:{width:`${Math.min(bufferLen/WINDOW_FRAMES,1)*100}%`}})),
+              e('div',{className:'progress-lbl'}, `Window buffer: ${bufferLen} / ${WINDOW_FRAMES} frames — predicts every ${WINDOW_SECONDS}s`),
+            ),
+          ),
+          e('div', { className:'stats-row' },
+            e('div',{className:'stat'}, e('div',{className:'val'},frameCount),    e('div',{className:'key'},'Frames')),
+            e('div',{className:'stat'}, e('div',{className:'val'},windowCount),   e('div',{className:'key'},'Windows')),
+            e('div',{className:'stat'}, e('div',{className:'val'},history.length),e('div',{className:'key'},'Rows')),
+            e('div',{className:'stat'}, e('div',{className:'val'},lastPredTime??'—'),e('div',{className:'key'},'Last pred')),
+          ),
+        ),
+      ),
+
+      e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
+
+        paused ? e('div', { className:'panel' },
+          e('div',{className:'panel-header'},'📊 Overall engagement split'),
+          e('div',{className:'timeline-section'}, e(OverallSplitChart,{history})),
+        ) : null,
+
+        paused ? e('div', { className:'panel' },
+          e('div',{className:'panel-header'},'📈 Engagement timeline'),
+          // ── LabelSplitCharts now receives sessionId ──
+          e(LabelSplitCharts, { history, sessionId }),
+          e('div', { style:{ display:'flex', gap:'1rem', padding:'0.7rem 1rem', flexWrap:'wrap' } },
+            LABEL_COLS.map(lbl => e('label', { key:lbl, style:{ display:'flex', alignItems:'center', gap:'0.4rem', cursor:'pointer', color:'#ccc', fontSize:'0.85rem' } },
+              e('input', { type:'checkbox', checked:checkedLabels[lbl], onChange:ev=>setCheckedLabels(prev=>({...prev,[lbl]:ev.target.checked})), style:{cursor:'pointer'} }),
+              `${LABEL_EMOJIS[lbl]} ${lbl}`
+            ))
+          ),
+          e('div',{className:'timeline-section'}, e(TimelineChart,{history, visibleLabels:checkedLabels})),
+          e('hr',{className:'div'}),
+        ) : null,
+
+        e('details', null,
+          e('summary',null,'🐛 Debug panel'),
+          e('div',{className:'debug-box'},
+            e('div',null, e('b',null,'MediaPipe: '), e('span',{className:modelReady?'ok':'err'},String(modelReady))),
+            e('div',null, e('b',null,'Camera: '),    e('span',{className:cameraReady?'ok':'err'},String(cameraReady))),
+            e('div',null, e('b',null,'Running: '),   e('span',{className:running?'ok':'err'},String(running))),
+            e('div',null, e('b',null,'Session ID: '),sessionId??'—'),
+            e('div',null, e('b',null,'HF space: '),  e('span',{className:'ok'},HF_SPACE)),
+            e('div',null, e('b',null,'HF token: '),  HF_TOKEN ? e('span',{className:'ok'},'configured') : e('span',{className:'err'},'not set')),
+            e('div',null, e('b',null,'Supabase: '),   SUPABASE_URL?e('span',{className:'ok'},'configured'):e('span',{className:'err'},'not set')),
+            e('div',null, e('b',null,'Buffer: '),     `${bufferLen} / ${WINDOW_FRAMES}`),
+            e('div',null, e('b',null,'History rows: '),history.length),
+            e('hr',{className:'div'}),
+            e('div',{className:'dbg-btns'},
+              e('button',{className:'btn-ghost',onClick:injectDummy},'💉 Inject dummy'),
+              e('button',{className:'btn-ghost',onClick:()=>{setHistory([]);setCurrentPreds(null);}},'🗑 Clear history'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
