@@ -431,6 +431,9 @@ async function sbRequest(table, method, body, params) {
     const t = await res.text();
     throw new Error(`Supabase ${res.status}: ${t.slice(0, 200)}`);
   }
+  if (res.status === 204) return null;
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) return null;
   return res.json();
 }
 
@@ -479,6 +482,15 @@ async function saveManualOverride(sessionId, bucketLabel, labelCol, levelPercent
     label_col:         labelCol,
     level_percentages: levelPercentages,  // array [veryLow%, low%, high%, veryHigh%]
     overridden_at:     new Date().toISOString(),
+  });
+}
+
+async function clearManualOverride(sessionId, bucketLabel, labelCol) {
+  if (!sessionId) return null;
+  return sbRequest('manual_overrides', 'DELETE', null, {
+    session_id: `eq.${sessionId}`,
+    bucket_label: `eq.${bucketLabel}`,
+    label_col: `eq.${labelCol}`,
   });
 }
 
@@ -678,10 +690,11 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5) {
 // ═══════════════════════════════════════════════════════════════
 // BAR EDIT PANEL — shown on bar click
 // ═══════════════════════════════════════════════════════════════
-function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sessionId }) {
+function BarEditPanel({ label, bucketLabel, initialValues, onSave, onRestore, onClose, sessionId }) {
   // initialValues: array of 4 numbers summing to 100
   const [vals, setVals] = useState([...initialValues]);
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
 
   const sum = vals.reduce((s, v) => s + v, 0);
@@ -739,6 +752,20 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sess
     }
   }
 
+  async function handleRestore() {
+    setRestoring(true);
+    setSaveMsg('');
+    try {
+      await clearManualOverride(sessionId, bucketLabel, label);
+      setSaveMsg('↺ Restored original prediction');
+      setTimeout(() => { setSaveMsg(''); onRestore(); }, 500);
+    } catch (err) {
+      setSaveMsg('⚠ ' + String(err).slice(0, 80));
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   const e = React.createElement;
   return e('div', { className:'bar-edit-overlay' },
     e('h4', null,
@@ -766,8 +793,13 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sess
     e('div', { className:'edit-actions' },
       e('button', { className:'btn-cancel edit-actions', onClick:onClose }, 'Cancel'),
       e('button', {
+        className:'btn-ghost',
+        disabled: restoring,
+        onClick: handleRestore,
+      }, restoring ? 'Restoring…' : 'Restore'),
+      e('button', {
         className:'btn-save',
-        disabled: !sumOk || saving,
+        disabled: !sumOk || saving || restoring,
         onClick: handleSave,
       }, saving ? 'Saving…' : 'Save'),
     ),
@@ -847,6 +879,19 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
     setEditState(null);
   }
 
+  function handleRestore() {
+    if (!editState) return;
+    const { label, bucketLabel } = editState;
+    const key = `${label}:${bucketLabel}`;
+    setOverrides(prev => {
+      if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setEditState(null);
+  }
+
   const e = React.createElement;
   return e('div', null,
     e('div', {
@@ -874,6 +919,7 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
               initialValues: editState.initialValues,
               sessionId,
               onSave: handleSave,
+              onRestore: handleRestore,
               onClose: () => setEditState(null),
             })
           ) : null,
@@ -1068,26 +1114,6 @@ function App() {
     setWindowCount(c => c + 1);
   }, []);
 
-  const e = React.createElement;
-
-  if (showNameScreen) {
-    return e('div', { className:'name-modal' },
-      e('div', { className:'name-card' },
-        e('h2', null, 'Welcome — enter your name to begin'),
-        e('input', { className:'url-input', type:'text', placeholder:'Your name…', value:userName, onChange:ev=>setUserName(ev.target.value) }),
-        e('div', { className:'name-row' },
-          e('div', { style:{ marginLeft:'auto' } },
-            e('button', { className:'btn-primary', onClick:()=>{ if (userName.trim()) setShowNameScreen(false); } }, 'Next')
-          )
-        )
-      )
-    );
-  }
-
-  return e('div', { className:'app' },
-
-  }, [modelReady, contentUrl, processFrame]);
-
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
@@ -1110,6 +1136,25 @@ function App() {
     })();
     return () => { cancelled = true; };
   }, [sessionId]);
+
+  const e = React.createElement;
+
+  if (showNameScreen) {
+    return e('div', { className:'name-modal' },
+      e('div', { className:'name-card' },
+        e('h2', null, 'Welcome — enter your name to begin'),
+        e('input', { className:'url-input', type:'text', placeholder:'Your name…', value:userName, onChange:ev=>setUserName(ev.target.value) }),
+        e('div', { className:'name-row' },
+          e('div', { style:{ marginLeft:'auto' } },
+            e('button', { className:'btn-primary', onClick:()=>{ if (userName.trim()) setShowNameScreen(false); } }, 'Next')
+          )
+        )
+      )
+    );
+  }
+
+  return e('div', { className:'app' },
+    e('div', { className:'header' },
       e('div', { className:`status-dot ${running ? 'active' : ''}` }),
       e('h1', null, 'Engagement ', e('span',null,'Learner')),
       e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
