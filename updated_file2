@@ -711,13 +711,11 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sess
 // ═══════════════════════════════════════════════════════════════
 // LabelSplitCharts — with bar click → edit overlay
 // ═══════════════════════════════════════════════════════════════
-function LabelSplitCharts({ history, sessionId, onHistoryOverride }) {
+function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
   const chartRefs    = useRef([]);
   const wrapperRefs  = useRef([]);
   // editState: { labelIdx, bucketIdx, bucketLabel, initialValues }
   const [editState, setEditState] = useState(null);
-  // manualOverrides: { "label:bucket": [v0,v1,v2,v3] }
-  const [overrides, setOverrides]  = useState({});
 
   // Build chart data for label at idx
   function getChartData(label) {
@@ -840,6 +838,7 @@ function App() {
   const [modelReady,   setModelReady]   = useState(false);
   const [configWarn,   setConfigWarn]   = useState('');
   const [checkedLabels, setCheckedLabels] = useState({Boredom:true, Engagement:true, Confusion:true, Frustration:true});
+  const [overrides,    setOverrides]    = useState({});
 
   const videoRef     = useRef(null);
   const canvasRef    = useRef(null);
@@ -1053,7 +1052,7 @@ function App() {
       ),
     ),
 
-    e('div', { className:'main-grid' },
+    e('div', { className:'main-grid', style:{gridTemplateColumns: paused ? '1fr 3fr' : '3fr 1fr'} },
 
       e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
         e('div', { className:'panel' },
@@ -1103,7 +1102,7 @@ function App() {
         paused ? e('div', { className:'panel' },
           e('div',{className:'panel-header'},'📈 Engagement timeline'),
           // ── LabelSplitCharts now receives sessionId ──
-          e(LabelSplitCharts, { history, sessionId }),
+          e(LabelSplitCharts, { history, sessionId, overrides, setOverrides }),
           e('div', { style:{ display:'flex', gap:'1rem', padding:'0.7rem 1rem', flexWrap:'wrap' } },
             LABEL_COLS.map(lbl => e('label', { key:lbl, style:{ display:'flex', alignItems:'center', gap:'0.4rem', cursor:'pointer', color:'#ccc', fontSize:'0.85rem' } },
               e('input', { type:'checkbox', checked:checkedLabels[lbl], onChange:ev=>setCheckedLabels(prev=>({...prev,[lbl]:ev.target.checked})), style:{cursor:'pointer'} }),
