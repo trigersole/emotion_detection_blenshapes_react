@@ -482,6 +482,15 @@ async function saveManualOverride(sessionId, bucketLabel, labelCol, levelPercent
   });
 }
 
+async function getManualOverrides(sessionId) {
+  if (!sessionId) return [];
+  return sbRequest('manual_overrides', 'GET', null, {
+    select: 'bucket_label,label_col,level_percentages',
+    session_id: `eq.${sessionId}`,
+    order: 'overridden_at.desc',
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // TIMELINE CHART (Plotly)
 // ═══════════════════════════════════════════════════════════════
@@ -491,24 +500,82 @@ function TimelineChart({ history, visibleLabels }) {
     if (!divRef.current) return;
     if (!history.length) { Plotly.purge?.(divRef.current); return; }
     const df = [...history].sort((a,b) => new Date(a.predicted_at)-new Date(b.predicted_at));
-    const xs = df.map(r => r.predicted_at);
+    const times = df.map(r => r.predicted_at);
+    const n = df.length;
+    const RECENT_COUNT = 5;
+    const RECENT_SPACE = 0.72; // 72% of axis space dedicated to recent points
+    const SPLIT_X = 1 - RECENT_SPACE;
+
+    // Build a piecewise x-axis: older points compressed, last RECENT_COUNT expanded.
+    const xs = times.map((_, i) => {
+      if (n <= RECENT_COUNT) {
+        return n <= 1 ? 1 : (i / (n - 1)) * 100;
+      }
+      const olderCount = n - RECENT_COUNT;
+      if (i < olderCount) {
+        if (olderCount <= 1) return SPLIT_X * 100;
+        return ((i / (olderCount - 1)) * SPLIT_X) * 100;
+      }
+      const recentIdx = i - olderCount;
+      return ((SPLIT_X + (recentIdx / (RECENT_COUNT - 1)) * RECENT_SPACE)) * 100;
+    });
+
+    const tickvals = [];
+    const ticktext = [];
+    const fmtTime = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (n <= RECENT_COUNT) {
+      for (let i = 0; i < n; i++) {
+        tickvals.push(xs[i]);
+        ticktext.push(fmtTime(times[i]));
+      }
+    } else {
+      const olderCount = n - RECENT_COUNT;
+      tickvals.push(xs[0]);
+      ticktext.push(fmtTime(times[0]));
+      if (olderCount > 2) {
+        const midOld = Math.floor((olderCount - 1) / 2);
+        tickvals.push(xs[midOld]);
+        ticktext.push(fmtTime(times[midOld]));
+      }
+      tickvals.push(xs[olderCount - 1]);
+      ticktext.push(fmtTime(times[olderCount - 1]));
+      for (let i = n - RECENT_COUNT; i < n; i++) {
+        tickvals.push(xs[i]);
+        ticktext.push(fmtTime(times[i]));
+      }
+    }
+
     const mode = df.length < 2 ? 'markers' : 'lines+markers';
     const traces = LABEL_COLS
       .filter(lbl => (visibleLabels?.[lbl] ?? true) && df.some(r => r[lbl] !== undefined))
       .map(lbl => ({
         x: xs,
         y: df.map(r => r[lbl] !== undefined ? r[lbl] : null),
-        customdata: df.map(r => r[lbl] !== undefined ? LEVEL_LABELS[r[lbl]] : null),
+        customdata: df.map((r, idx) => ({
+          level: r[lbl] !== undefined ? LEVEL_LABELS[r[lbl]] : null,
+          ts: times[idx],
+        })),
         mode, connectgaps: true,
         name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
         line: { color: LABEL_COLORS[lbl], width: 3 },
         marker: { size: 7, color: LABEL_COLORS[lbl] },
-        hovertemplate: `<b>${lbl}</b><br>%{x|%H:%M:%S}<br>level: %{customdata}<extra></extra>`,
+        hovertemplate: `<b>${lbl}</b><br>%{customdata.ts}<br>level: %{customdata.level}<extra></extra>`,
       }));
     Plotly.react(divRef.current, traces, {
       margin: { l:60,r:10,t:10,b:10 }, height:360,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
-      xaxis: { showgrid:true, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', type:'date' },
+      xaxis: {
+        showgrid:true,
+        gridcolor:'rgba(80,80,100,0.2)',
+        color:'#aaa',
+        range:[0,100],
+        tickmode:'array',
+        tickvals,
+        ticktext,
+        tickangle:-30,
+        title:{ text: n > RECENT_COUNT ? 'Time (recent 5 expanded)' : 'Time', font:{size:11,color:'#aaa'} },
+      },
       yaxis: {
         range:[-0.5,3.5], tickmode:'array', tickvals:[0,1,2,3],
         ticktext:['Very Low','Low','High','Very High'],
@@ -713,7 +780,6 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onClose, sess
 // ═══════════════════════════════════════════════════════════════
 function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
   const chartRefs    = useRef([]);
-  const wrapperRefs  = useRef([]);
   // editState: { labelIdx, bucketIdx, bucketLabel, initialValues }
   const [editState, setEditState] = useState(null);
 
@@ -756,7 +822,8 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
       font:{size:11, color:'#ccc'},
     }, { displayModeBar:false, responsive:true });
 
-    // Attach click handler
+    // Attach click handler (remove previous first to avoid stacking on re-renders)
+    div.removeAllListeners('plotly_click');
     div.on('plotly_click', (data) => {
       const pt = data.points?.[0];
       if (!pt) return;
@@ -942,6 +1009,7 @@ function App() {
     if (!modelReady) { setLastError('MediaPipe model still loading.'); return; }
     setLastError(null); setHistory([]); setCurrentPreds(null);
     setFrameCount(0); setWindowCount(0); setBufferLen(0);
+    setOverrides({});
     frameBuffer.current = []; throttleRef.current = 0;
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
@@ -1018,7 +1086,30 @@ function App() {
 
   return e('div', { className:'app' },
 
-    e('div', { className:'header' },
+  }, [modelReady, contentUrl, processFrame]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await getManualOverrides(sessionId);
+        if (cancelled || !Array.isArray(rows)) return;
+        const next = {};
+        for (const row of rows) {
+          const key = `${row.label_col}:${row.bucket_label}`;
+          if (next[key]) continue;
+          if (Array.isArray(row.level_percentages) && row.level_percentages.length === 4) {
+            next[key] = row.level_percentages.map(v => Number(v) || 0);
+          }
+        }
+        setOverrides(next);
+      } catch (e) {
+        if (!cancelled) setLastError('[supabase] load overrides: ' + String(e));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId]);
       e('div', { className:`status-dot ${running ? 'active' : ''}` }),
       e('h1', null, 'Engagement ', e('span',null,'Learner')),
       e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
