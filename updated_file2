@@ -556,21 +556,37 @@ function TimelineChart({ history, visibleLabels }) {
     }
 
     const mode = df.length < 2 ? 'markers' : 'lines+markers';
+    const segmentOrder = [...new Set(df.map(r => (Number.isFinite(r.segment_id) ? r.segment_id : 1)))];
     const traces = LABEL_COLS
       .filter(lbl => (visibleLabels?.[lbl] ?? true) && df.some(r => r[lbl] !== undefined))
-      .map(lbl => ({
-        x: xs,
-        y: df.map(r => r[lbl] !== undefined ? r[lbl] : null),
-        customdata: df.map((r, idx) => ({
-          level: r[lbl] !== undefined ? LEVEL_LABELS[r[lbl]] : null,
-          ts: times[idx],
-        })),
-        mode, connectgaps: true,
-        name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
-        line: { color: LABEL_COLORS[lbl], width: 3 },
-        marker: { size: 7, color: LABEL_COLORS[lbl] },
-        hovertemplate: `<b>${lbl}</b><br>%{customdata.ts}<br>level: %{customdata.level}<extra></extra>`,
-      }));
+      .flatMap(lbl => {
+        const perSegment = [];
+        for (let si = 0; si < segmentOrder.length; si++) {
+          const segId = segmentOrder[si];
+          const idxs = [];
+          for (let i = 0; i < df.length; i++) {
+            const rowSeg = Number.isFinite(df[i].segment_id) ? df[i].segment_id : 1;
+            if (rowSeg === segId && df[i][lbl] !== undefined) idxs.push(i);
+          }
+          if (!idxs.length) continue;
+          perSegment.push({
+            x: idxs.map(i => xs[i]),
+            y: idxs.map(i => df[i][lbl]),
+            customdata: idxs.map(i => ({
+              level: LEVEL_LABELS[df[i][lbl]],
+              ts: times[i],
+            })),
+            mode,
+            connectgaps: false,
+            name: `${LABEL_EMOJIS[lbl]} ${lbl}`,
+            showlegend: si === 0,
+            line: { color: LABEL_COLORS[lbl], width: 3 },
+            marker: { size: 7, color: LABEL_COLORS[lbl] },
+            hovertemplate: `<b>${lbl}</b><br>%{customdata.ts}<br>level: %{customdata.level}<extra></extra>`,
+          });
+        }
+        return perSegment;
+      });
     Plotly.react(divRef.current, traces, {
       margin: { l:60,r:10,t:10,b:80 }, height:360,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
@@ -664,6 +680,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
     .map(r => ({
       activeElapsedMs: Number.isFinite(r.active_elapsed_ms) ? r.active_elapsed_ms : null,
       ts: new Date(r.predicted_at).getTime(),
+      segmentStartTs: Number.isFinite(r.segment_start_ts) ? r.segment_start_ts : null,
       level: r[label],
       segmentId: Number.isFinite(r.segment_id) ? r.segment_id : 1,
     }))
@@ -688,10 +705,10 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
     const segmentRows = rawRows.filter(r => r.segmentId === segmentId).sort((a, b) => a.ts - b.ts);
     if (!segmentRows.length) return;
 
-    // Derive segment wall-clock start from active elapsed time.
-    const anchorRow = segmentRows.find(r => r.activeElapsedMs !== null);
+    // Segment starts at session start for segment 1, and at resume time for later segments.
+    const anchorRow = segmentRows.find(r => Number.isFinite(r.segmentStartTs));
     const fallbackStartTs = segmentRows[0].ts;
-    const segmentStart = anchorRow ? anchorRow.ts - anchorRow.activeElapsedMs : fallbackStartTs;
+    const segmentStart = anchorRow ? anchorRow.segmentStartTs : fallbackStartTs;
     const segmentEnd = segmentRows[segmentRows.length - 1].ts;
     const firstBoundary = Math.ceil(segmentStart / ms) * ms;
 
@@ -1026,6 +1043,7 @@ function App() {
   const activeElapsedBeforePauseRef = useRef(0);
   const activeRunStartedAtRef = useRef(null);
   const activeSegmentRef = useRef(1);
+  const segmentStartedAtWallClockRef = useRef(Date.now());
 
   useEffect(() => {
     const missing = [];
@@ -1109,6 +1127,7 @@ function App() {
         );
         const row = { predicted_at: ts, active_elapsed_ms: activeElapsedMs };
         row.segment_id = activeSegmentRef.current;
+        row.segment_start_ts = segmentStartedAtWallClockRef.current;
         for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
         setHistory(h => [...h.slice(-179), row]);
         insertPrediction(null, sessionRef.current, prediction)
@@ -1127,6 +1146,7 @@ function App() {
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = performance.now();
     activeSegmentRef.current = 1;
+    segmentStartedAtWallClockRef.current = Date.now();
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
     catch(e) { setLastError('Camera access denied: ' + e.message); return; }
@@ -1151,6 +1171,7 @@ function App() {
     if (paused) {
       activeSegmentRef.current += 1;
       activeRunStartedAtRef.current = performance.now();
+      segmentStartedAtWallClockRef.current = Date.now();
       pausedRef.current = false; setPaused(false);
       runningRef.current = true;
       rafRef.current = requestAnimationFrame(processFrame);
@@ -1171,6 +1192,7 @@ function App() {
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = null;
     activeSegmentRef.current = 1;
+    segmentStartedAtWallClockRef.current = Date.now();
     setRunning(false); setPaused(false);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -1195,6 +1217,7 @@ function App() {
         predicted_at: new Date().toISOString(),
         active_elapsed_ms: lastActiveElapsedMs + WINDOW_SECONDS * 1000,
         segment_id: activeSegmentRef.current,
+        segment_start_ts: segmentStartedAtWallClockRef.current,
       };
       for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
       return [...h, row];
