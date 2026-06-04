@@ -513,47 +513,12 @@ function TimelineChart({ history, visibleLabels }) {
     if (!history.length) { Plotly.purge?.(divRef.current); return; }
     const df = [...history].sort((a,b) => new Date(a.predicted_at)-new Date(b.predicted_at));
     const times = df.map(r => r.predicted_at);
-    const n = df.length;
-    const RECENT_COUNT = 5;
-    const RECENT_SPACE = 0.72; // 72% of axis space dedicated to recent points
-    const SPLIT_X = 1 - RECENT_SPACE;
-
-    // Build a piecewise x-axis: older points compressed, last RECENT_COUNT expanded.
-    const xs = times.map((_, i) => {
-      if (n <= RECENT_COUNT) {
-        return n <= 1 ? 1 : (i / (n - 1)) * 100;
-      }
-      const olderCount = n - RECENT_COUNT;
-      if (i < olderCount) {
-        if (olderCount <= 1) return SPLIT_X * 100;
-        return ((i / (olderCount - 1)) * SPLIT_X) * 100;
-      }
-      const recentIdx = i - olderCount;
-      return ((SPLIT_X + (recentIdx / (RECENT_COUNT - 1)) * RECENT_SPACE)) * 100;
-    });
-
-    const tickvals = [];
-    const ticktext = [];
-    const fmtTime = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    // Show time labels for all points if <= 10, otherwise show every 2-3 points for clarity
-    if (n <= 10) {
-      for (let i = 0; i < n; i++) {
-        tickvals.push(xs[i]);
-        ticktext.push(fmtTime(times[i]));
-      }
-    } else {
-      const step = Math.ceil(n / 8); // Show ~8 labels max
-      for (let i = 0; i < n; i += step) {
-        tickvals.push(xs[i]);
-        ticktext.push(fmtTime(times[i]));
-      }
-      // Always include the last point
-      if ((n - 1) % step !== 0) {
-        tickvals.push(xs[n - 1]);
-        ticktext.push(fmtTime(times[n - 1]));
-      }
-    }
+    const firstDay = new Date(times[0]).toDateString();
+    const hasMultipleDays = times.some(t => new Date(t).toDateString() !== firstDay);
+    const fmtHoverTime = t => {
+      const d = new Date(t);
+      return d.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
 
     const mode = df.length < 2 ? 'markers' : 'lines+markers';
     const segmentOrder = [...new Set(df.map(r => (Number.isFinite(r.segment_id) ? r.segment_id : 1)))];
@@ -570,11 +535,11 @@ function TimelineChart({ history, visibleLabels }) {
           }
           if (!idxs.length) continue;
           perSegment.push({
-            x: idxs.map(i => xs[i]),
+            x: idxs.map(i => times[i]),
             y: idxs.map(i => df[i][lbl]),
             customdata: idxs.map(i => ({
               level: LEVEL_LABELS[df[i][lbl]],
-              ts: times[i],
+              ts: fmtHoverTime(times[i]),
             })),
             mode,
             connectgaps: false,
@@ -591,16 +556,14 @@ function TimelineChart({ history, visibleLabels }) {
       margin: { l:60,r:10,t:10,b:80 }, height:360,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
       xaxis: {
+        type: 'date',
         showgrid:true,
         gridcolor:'rgba(80,80,100,0.2)',
         showline:true,
         linecolor:'#666',
         linewidth:2,
         color:'#aaa',
-        range:[0,100],
-        tickmode:'array',
-        tickvals,
-        ticktext,
+        tickformat: hasMultipleDays ? '%b %d\n%I:%M %p' : '%I:%M %p',
         tickangle:-45,
         automargin:true,
         title:{ text: 'Time', font:{size:11,color:'#aaa'} },
@@ -699,6 +662,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
   const labels = [];
   const bucketKeys = [];
   const editableMask = [];
+  const bucketDurationMs = [];
   const counts = [];
 
   uniqueSegmentIds.forEach((segmentId, segIdx) => {
@@ -740,6 +704,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
       labels.push(`${fmtClock(start)}-${fmtClock(end)}`);
       bucketKeys.push(`seg${segmentId}:${start}-${end}`);
       editableMask.push(editableSegmentId !== null && segmentId === editableSegmentId);
+      bucketDurationMs.push(Math.max(1000, end - start));
       counts.push(localCounts[i]);
     }
 
@@ -748,6 +713,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
       labels.push(' '.repeat(segIdx + 1));
       bucketKeys.push(`gap:${segmentId}`);
       editableMask.push(false);
+      bucketDurationMs.push(ms * 0.35);
       counts.push([0, 0, 0, 0]);
     }
   });
@@ -757,7 +723,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
     const total = c.reduce((s, x) => s + x, 0) || 0;
     for (let i = 0; i < 4; i++) percentagesPerLevel[i].push(total ? +(c[i] / total * 100).toFixed(0) : 0);
   }
-  return { labels, percentagesPerLevel, bucketKeys, editableMask };
+  return { labels, percentagesPerLevel, bucketKeys, editableMask, bucketDurationMs };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -905,24 +871,53 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
   function renderChart(label, idx, chartData) {
     const div = chartRefs.current[idx];
     if (!div) return;
-    const { labels, percentagesPerLevel } = chartData;
+    const { labels, percentagesPerLevel, editableMask, bucketDurationMs } = chartData;
     if (!labels.length) { Plotly.purge?.(div); return; }
 
+    const durationUnit = 5 * 60 * 1000;
+    const normalizedWidths = bucketDurationMs.map(d => Math.max(0.18, d / durationUnit));
+    const xPositions = [];
+    let cursor = 0;
+    for (let i = 0; i < normalizedWidths.length; i++) {
+      const w = normalizedWidths[i];
+      xPositions.push(cursor + w / 2);
+      cursor += w;
+    }
+
+    const tickvals = xPositions;
+    const ticktext = labels.map(l => l.trim() ? l : '');
+
     const traces = LEVEL_LABELS.map((lvl, li) => ({
-      x: labels,
+      x: xPositions,
       y: labels.map((lbl, bi) => (lbl.trim() ? percentagesPerLevel[li][bi] : null)),
+      width: normalizedWidths.map(w => w * 0.92),
+      customdata: labels,
       name: lvl, type: 'bar',
-      marker: { color: LEVEL_COLORS[li] },
+      marker: {
+        color: LEVEL_COLORS[li],
+        opacity: labels.map((lbl, bi) => {
+          if (!lbl.trim()) return 0;
+          return editableMask?.[bi] ? 1 : 0.35;
+        }),
+      },
       text: labels.map((lbl, bi) => (lbl.trim() ? `${percentagesPerLevel[li][bi]}%` : '')),
       textposition: 'auto',
-      hovertemplate: `<b>${label} — ${lvl}</b><br>%{x}: %{y}%<extra></extra>`,
+      hovertemplate: `<b>${label} — ${lvl}</b><br>%{customdata}: %{y}%<extra></extra>`,
     }));
 
     Plotly.react(div, traces, {
       margin:{l:82,r:10,t:30,b:60}, height:220,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
       barmode:'stack',
-      xaxis:{ title:{ text: '5 min windows', font:{size:11,color:'#aaa'} }, tickfont:{color:'#ccc'}, tickangle:-45, automargin:true },
+      xaxis:{
+        title:{ text: '5 min windows', font:{size:11,color:'#aaa'} },
+        tickfont:{color:'#ccc'},
+        tickangle:-45,
+        automargin:true,
+        tickmode:'array',
+        tickvals,
+        ticktext,
+      },
       yaxis:{ range:[0,100], ticksuffix:'%', showline:true, linecolor:'#666', linewidth:2, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', automargin:true, title:{text:'Percentage of Time (%)',font:{size:11,color:'#ccc'},standoff:16} },
       font:{size:11, color:'#ccc'},
     }, { displayModeBar:false, responsive:true });
@@ -932,9 +927,9 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
     div.on('plotly_click', (data) => {
       const pt = data.points?.[0];
       if (!pt) return;
-      const bucketLabel = pt.x;
       const bucketIdx   = pt.pointIndex;
       const chartData2  = getChartData(label);
+      const bucketLabel = chartData2.labels[bucketIdx];
       if (!chartData2.editableMask[bucketIdx]) return;
       const bucketKey = chartData2.bucketKeys[bucketIdx];
       const initialValues = LEVEL_LABELS.map((_, li) => chartData2.percentagesPerLevel[li][bucketIdx] ?? 0);
