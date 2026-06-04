@@ -660,26 +660,69 @@ function OverallSplitChart({ history }) {
 
 function bucketLevelPercentages(history, label, bucketMinutes = 5) {
   const ms = bucketMinutes * 60 * 1000;
-  const rows = (history || [])
-    .map(r => ({ ts: new Date(r.predicted_at).getTime(), level: r[label] }))
+  const rawRows = (history || [])
+    .map(r => ({
+      activeElapsedMs: Number.isFinite(r.active_elapsed_ms) ? r.active_elapsed_ms : null,
+      ts: new Date(r.predicted_at).getTime(),
+      level: r[label],
+    }))
     .filter(r => r.level !== undefined && r.level !== null && !isNaN(r.ts));
-  if (!rows.length) return { labels: [], percentagesPerLevel: [[], [], [], []] };
-  const minTs = Math.min(...rows.map(r => r.ts));
-  const maxTs = Math.max(...rows.map(r => r.ts));
-  const start = Math.floor(minTs / ms) * ms;
-  const end   = Math.ceil((maxTs + 1) / ms) * ms;
-  const bucketStarts = [];
-  for (let t = start; t < end; t += ms) bucketStarts.push(t);
-  const counts = bucketStarts.map(() => [0, 0, 0, 0]);
-  for (const r of rows) {
-    const idx = Math.floor((r.ts - start) / ms);
-    if (idx >= 0 && idx < counts.length && r.level >= 0 && r.level < 4) counts[idx][r.level] += 1;
+  if (!rawRows.length) return { labels: [], percentagesPerLevel: [[], [], [], []] };
+
+  // Derive the true session wall-clock start: ts - active_elapsed_ms
+  const anchorRow = rawRows.find(r => r.activeElapsedMs !== null);
+  const fallbackStartTs = Math.min(...rawRows.map(r => r.ts));
+  const sessionStart = anchorRow ? anchorRow.ts - anchorRow.activeElapsedMs : fallbackStartTs;
+  const lastTs = Math.max(...rawRows.map(r => r.ts));
+
+  // First clock-aligned 5-min boundary at or after session start
+  // e.g. session starts 12:02 → firstBoundary = 12:05
+  const firstBoundary = Math.ceil(sessionStart / ms) * ms;
+
+  // Build bucket boundary pairs [bucketStart, bucketEnd):
+  //   bucket 0 : [sessionStart,    firstBoundary)        → "12:02-12:05"
+  //   bucket 1 : [firstBoundary,   firstBoundary + ms)   → "12:05-12:10"
+  //   ...
+  //   bucket N : [lastBoundary,    lastTs]                → "12:10-12:13"
+  // If session start is already on a boundary, bucket 0 is a full window.
+  const boundaries = [];
+  boundaries.push(sessionStart);
+  for (let t = firstBoundary; t <= lastTs; t += ms) boundaries.push(t);
+  // Ensure the last prediction time closes the final bucket
+  if (boundaries[boundaries.length - 1] < lastTs) boundaries.push(lastTs);
+
+  // Remove duplicate if sessionStart === firstBoundary
+  const dedupedBoundaries = boundaries.filter((v, i) => i === 0 || v !== boundaries[i - 1]);
+
+  const bucketCount = dedupedBoundaries.length - 1;
+  if (bucketCount < 1) return { labels: [], percentagesPerLevel: [[], [], [], []] };
+
+  const counts = Array.from({ length: bucketCount }, () => [0, 0, 0, 0]);
+
+  for (const r of rawRows) {
+    if (r.level < 0 || r.level >= 4) continue;
+    // Find which bucket this prediction falls into
+    let idx = bucketCount - 1; // default to last
+    for (let i = 0; i < bucketCount; i++) {
+      if (r.ts >= dedupedBoundaries[i] && r.ts < dedupedBoundaries[i + 1]) {
+        idx = i; break;
+      }
+    }
+    // Include the final boundary point in the last bucket
+    if (r.ts === dedupedBoundaries[bucketCount]) idx = bucketCount - 1;
+    counts[idx][r.level] += 1;
   }
-  const labels = bucketStarts.map(bs => {
-    const s = new Date(bs), e = new Date(bs + ms);
-    const pad = v => String(v).padStart(2, '0');
-    return `${pad(s.getHours())}:${pad(s.getMinutes())}-${pad(e.getHours())}:${pad(e.getMinutes())}`;
-  });
+
+  const pad = v => String(v).padStart(2, '0');
+  const fmtClock = epochMs => {
+    const d = new Date(epochMs);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const labels = Array.from({ length: bucketCount }, (_, i) =>
+    `${fmtClock(dedupedBoundaries[i])}-${fmtClock(dedupedBoundaries[i + 1])}`
+  );
+
   const percentagesPerLevel = [[], [], [], []];
   for (const c of counts) {
     const total = c.reduce((s, x) => s + x, 0) || 0;
@@ -965,6 +1008,8 @@ function App() {
   const rafRef       = useRef(null);
   const drawUtils    = useRef(null);
   const sessionRef   = useRef(null);
+  const activeElapsedBeforePauseRef = useRef(0);
+  const activeRunStartedAtRef = useRef(null);
 
   useEffect(() => {
     const missing = [];
@@ -1042,7 +1087,11 @@ function App() {
         setWindowCount(c => c + 1);
         setLastPredTime(new Date().toLocaleTimeString());
         const ts = new Date().toISOString();
-        const row = { predicted_at: ts };
+        const activeElapsedMs = Math.round(
+          activeElapsedBeforePauseRef.current +
+          Math.max(0, now - (activeRunStartedAtRef.current ?? now))
+        );
+        const row = { predicted_at: ts, active_elapsed_ms: activeElapsedMs };
         for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
         setHistory(h => [...h.slice(-179), row]);
         insertPrediction(null, sessionRef.current, prediction)
@@ -1058,6 +1107,8 @@ function App() {
     setFrameCount(0); setWindowCount(0); setBufferLen(0);
     setOverrides({});
     frameBuffer.current = []; throttleRef.current = 0;
+    activeElapsedBeforePauseRef.current = 0;
+    activeRunStartedAtRef.current = performance.now();
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
     catch(e) { setLastError('Camera access denied: ' + e.message); return; }
@@ -1080,11 +1131,17 @@ function App() {
   const handlePauseToggle = useCallback(() => {
     if (!running) return;
     if (paused) {
+      activeRunStartedAtRef.current = performance.now();
       pausedRef.current = false; setPaused(false);
       runningRef.current = true;
       rafRef.current = requestAnimationFrame(processFrame);
       return;
     }
+    activeElapsedBeforePauseRef.current += Math.max(
+      0,
+      performance.now() - (activeRunStartedAtRef.current ?? performance.now())
+    );
+    activeRunStartedAtRef.current = null;
     pausedRef.current = true; setPaused(true);
     runningRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -1092,6 +1149,8 @@ function App() {
 
   const handleStop = useCallback(() => {
     runningRef.current = false; pausedRef.current = false;
+    activeElapsedBeforePauseRef.current = 0;
+    activeRunStartedAtRef.current = null;
     setRunning(false); setPaused(false);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -1108,7 +1167,13 @@ function App() {
       const label = Math.floor(Math.random() * 4);
       dummy[lbl] = { label, probabilities: Array.from({length:4}, () => +Math.random().toFixed(4)) };
     }
-    const row = { predicted_at: new Date().toISOString() };
+    const lastActiveElapsedMs = history.length
+      ? (history[history.length - 1].active_elapsed_ms ?? history.length * WINDOW_SECONDS * 1000)
+      : 0;
+    const row = {
+      predicted_at: new Date().toISOString(),
+      active_elapsed_ms: lastActiveElapsedMs + WINDOW_SECONDS * 1000,
+    };
     for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
     setHistory(h => [...h, row]);
     setCurrentPreds(dummy);
