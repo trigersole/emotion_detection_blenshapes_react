@@ -658,59 +658,18 @@ function OverallSplitChart({ history }) {
   return React.createElement('div', { ref:divRef, style:{width:'100%'} });
 }
 
-function bucketLevelPercentages(history, label, bucketMinutes = 5) {
+function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegmentId = null) {
   const ms = bucketMinutes * 60 * 1000;
   const rawRows = (history || [])
     .map(r => ({
       activeElapsedMs: Number.isFinite(r.active_elapsed_ms) ? r.active_elapsed_ms : null,
       ts: new Date(r.predicted_at).getTime(),
       level: r[label],
+      segmentId: Number.isFinite(r.segment_id) ? r.segment_id : 1,
     }))
     .filter(r => r.level !== undefined && r.level !== null && !isNaN(r.ts));
-  if (!rawRows.length) return { labels: [], percentagesPerLevel: [[], [], [], []] };
-
-  // Derive the true session wall-clock start: ts - active_elapsed_ms
-  const anchorRow = rawRows.find(r => r.activeElapsedMs !== null);
-  const fallbackStartTs = Math.min(...rawRows.map(r => r.ts));
-  const sessionStart = anchorRow ? anchorRow.ts - anchorRow.activeElapsedMs : fallbackStartTs;
-  const lastTs = Math.max(...rawRows.map(r => r.ts));
-
-  // First clock-aligned 5-min boundary at or after session start
-  // e.g. session starts 12:02 → firstBoundary = 12:05
-  const firstBoundary = Math.ceil(sessionStart / ms) * ms;
-
-  // Build bucket boundary pairs [bucketStart, bucketEnd):
-  //   bucket 0 : [sessionStart,    firstBoundary)        → "12:02-12:05"
-  //   bucket 1 : [firstBoundary,   firstBoundary + ms)   → "12:05-12:10"
-  //   ...
-  //   bucket N : [lastBoundary,    lastTs]                → "12:10-12:13"
-  // If session start is already on a boundary, bucket 0 is a full window.
-  const boundaries = [];
-  boundaries.push(sessionStart);
-  for (let t = firstBoundary; t <= lastTs; t += ms) boundaries.push(t);
-  // Ensure the last prediction time closes the final bucket
-  if (boundaries[boundaries.length - 1] < lastTs) boundaries.push(lastTs);
-
-  // Remove duplicate if sessionStart === firstBoundary
-  const dedupedBoundaries = boundaries.filter((v, i) => i === 0 || v !== boundaries[i - 1]);
-
-  const bucketCount = dedupedBoundaries.length - 1;
-  if (bucketCount < 1) return { labels: [], percentagesPerLevel: [[], [], [], []] };
-
-  const counts = Array.from({ length: bucketCount }, () => [0, 0, 0, 0]);
-
-  for (const r of rawRows) {
-    if (r.level < 0 || r.level >= 4) continue;
-    // Find which bucket this prediction falls into
-    let idx = bucketCount - 1; // default to last
-    for (let i = 0; i < bucketCount; i++) {
-      if (r.ts >= dedupedBoundaries[i] && r.ts < dedupedBoundaries[i + 1]) {
-        idx = i; break;
-      }
-    }
-    // Include the final boundary point in the last bucket
-    if (r.ts === dedupedBoundaries[bucketCount]) idx = bucketCount - 1;
-    counts[idx][r.level] += 1;
+  if (!rawRows.length) {
+    return { labels: [], percentagesPerLevel: [[], [], [], []], bucketKeys: [], editableMask: [] };
   }
 
   const pad = v => String(v).padStart(2, '0');
@@ -719,16 +678,69 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5) {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  const labels = Array.from({ length: bucketCount }, (_, i) =>
-    `${fmtClock(dedupedBoundaries[i])}-${fmtClock(dedupedBoundaries[i + 1])}`
-  );
+  const uniqueSegmentIds = [...new Set(rawRows.map(r => r.segmentId))].sort((a, b) => a - b);
+  const labels = [];
+  const bucketKeys = [];
+  const editableMask = [];
+  const counts = [];
+
+  uniqueSegmentIds.forEach((segmentId, segIdx) => {
+    const segmentRows = rawRows.filter(r => r.segmentId === segmentId).sort((a, b) => a.ts - b.ts);
+    if (!segmentRows.length) return;
+
+    // Derive segment wall-clock start from active elapsed time.
+    const anchorRow = segmentRows.find(r => r.activeElapsedMs !== null);
+    const fallbackStartTs = segmentRows[0].ts;
+    const segmentStart = anchorRow ? anchorRow.ts - anchorRow.activeElapsedMs : fallbackStartTs;
+    const segmentEnd = segmentRows[segmentRows.length - 1].ts;
+    const firstBoundary = Math.ceil(segmentStart / ms) * ms;
+
+    const boundaries = [segmentStart];
+    for (let t = firstBoundary; t <= segmentEnd; t += ms) boundaries.push(t);
+    if (boundaries[boundaries.length - 1] < segmentEnd) boundaries.push(segmentEnd);
+    const dedupedBoundaries = boundaries.filter((v, i) => i === 0 || v !== boundaries[i - 1]);
+
+    const localBucketCount = dedupedBoundaries.length - 1;
+    if (localBucketCount < 1) return;
+
+    const localCounts = Array.from({ length: localBucketCount }, () => [0, 0, 0, 0]);
+    for (const r of segmentRows) {
+      if (r.level < 0 || r.level >= 4) continue;
+      let idx = localBucketCount - 1;
+      for (let i = 0; i < localBucketCount; i++) {
+        if (r.ts >= dedupedBoundaries[i] && r.ts < dedupedBoundaries[i + 1]) {
+          idx = i;
+          break;
+        }
+      }
+      if (r.ts === dedupedBoundaries[localBucketCount]) idx = localBucketCount - 1;
+      localCounts[idx][r.level] += 1;
+    }
+
+    for (let i = 0; i < localBucketCount; i++) {
+      const start = dedupedBoundaries[i];
+      const end = dedupedBoundaries[i + 1];
+      labels.push(`${fmtClock(start)}-${fmtClock(end)}`);
+      bucketKeys.push(`seg${segmentId}:${start}-${end}`);
+      editableMask.push(editableSegmentId !== null && segmentId === editableSegmentId);
+      counts.push(localCounts[i]);
+    }
+
+    // Insert a visual break between pause/resume segments.
+    if (segIdx < uniqueSegmentIds.length - 1) {
+      labels.push(' ');
+      bucketKeys.push(`gap:${segmentId}`);
+      editableMask.push(false);
+      counts.push([0, 0, 0, 0]);
+    }
+  });
 
   const percentagesPerLevel = [[], [], [], []];
   for (const c of counts) {
     const total = c.reduce((s, x) => s + x, 0) || 0;
     for (let i = 0; i < 4; i++) percentagesPerLevel[i].push(total ? +(c[i] / total * 100).toFixed(0) : 0);
   }
-  return { labels, percentagesPerLevel };
+  return { labels, percentagesPerLevel, bucketKeys, editableMask };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -854,18 +866,18 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onRestore, on
 // ═══════════════════════════════════════════════════════════════
 // LabelSplitCharts — with bar click → edit overlay
 // ═══════════════════════════════════════════════════════════════
-function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
+function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editableSegmentId }) {
   const chartRefs    = useRef([]);
   // editState: { labelIdx, bucketIdx, bucketLabel, initialValues }
   const [editState, setEditState] = useState(null);
 
   // Build chart data for label at idx
   function getChartData(label) {
-    const base = bucketLevelPercentages(history, label, 5);
+    const base = bucketLevelPercentages(history, label, 5, editableSegmentId);
     // Apply any manual overrides
     const ppl = base.percentagesPerLevel.map(arr => [...arr]);
-    base.labels.forEach((bl, bi) => {
-      const key = `${label}:${bl}`;
+    base.bucketKeys.forEach((bucketKey, bi) => {
+      const key = `${label}:${bucketKey}`;
       if (overrides[key]) {
         for (let li = 0; li < 4; li++) ppl[li][bi] = overrides[key][li];
       }
@@ -906,27 +918,29 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides }) {
       const bucketLabel = pt.x;
       const bucketIdx   = pt.pointIndex;
       const chartData2  = getChartData(label);
+      if (!chartData2.editableMask[bucketIdx]) return;
+      const bucketKey = chartData2.bucketKeys[bucketIdx];
       const initialValues = LEVEL_LABELS.map((_, li) => chartData2.percentagesPerLevel[li][bucketIdx] ?? 0);
-      setEditState({ labelIdx: idx, label, bucketIdx, bucketLabel, initialValues });
+      setEditState({ labelIdx: idx, label, bucketIdx, bucketLabel, bucketKey, initialValues });
     });
   }
 
   useEffect(() => {
     LABEL_COLS.forEach((label, idx) => renderChart(label, idx, getChartData(label)));
-  }, [history, overrides]);
+  }, [history, overrides, editableSegmentId]);
 
   function handleSave(newVals) {
     if (!editState) return;
-    const { label, bucketLabel } = editState;
-    const key = `${label}:${bucketLabel}`;
+    const { label, bucketKey } = editState;
+    const key = `${label}:${bucketKey}`;
     setOverrides(prev => ({ ...prev, [key]: newVals }));
     setEditState(null);
   }
 
   function handleRestore() {
     if (!editState) return;
-    const { label, bucketLabel } = editState;
-    const key = `${label}:${bucketLabel}`;
+    const { label, bucketKey } = editState;
+    const key = `${label}:${bucketKey}`;
     setOverrides(prev => {
       if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
       const next = { ...prev };
