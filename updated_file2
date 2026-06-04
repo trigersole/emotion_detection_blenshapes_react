@@ -290,6 +290,19 @@ const CAPTURE_FPS    = 5;
 const WINDOW_SECONDS = 10;
 const WINDOW_FRAMES  = CAPTURE_FPS * WINDOW_SECONDS;  // 50
 const MODEL_VERSION  = 'xgb-v1';
+const SINGAPORE_TZ   = 'Asia/Singapore';
+const ENABLE_GRAPH_SLIDER_EDIT = true;
+const ENABLE_EDIT_TEXT_REQUIREMENT = true;
+const SHOW_WEBCAM_PANEL = true;
+const SHOW_DEBUG_PANEL = true;
+
+function formatSingaporeTime(value, options = {}) {
+  return new Date(value).toLocaleString([], { timeZone: SINGAPORE_TZ, ...options });
+}
+
+function singaporeDayKey(value) {
+  return formatSingaporeTime(value, { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // BLENDSHAPE_NAMES
@@ -513,12 +526,38 @@ function TimelineChart({ history, visibleLabels }) {
     if (!history.length) { Plotly.purge?.(divRef.current); return; }
     const df = [...history].sort((a,b) => new Date(a.predicted_at)-new Date(b.predicted_at));
     const times = df.map(r => r.predicted_at);
-    const firstDay = new Date(times[0]).toDateString();
-    const hasMultipleDays = times.some(t => new Date(t).toDateString() !== firstDay);
-    const fmtHoverTime = t => {
-      const d = new Date(t);
-      return d.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timesMs = times.map(t => new Date(t).getTime());
+    const firstDay = singaporeDayKey(timesMs[0]);
+    const hasMultipleDays = timesMs.some(t => singaporeDayKey(t) !== firstDay);
+
+    const fmtAxisTime = t => {
+      if (hasMultipleDays) {
+        return formatSingaporeTime(t, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      }
+      return formatSingaporeTime(t, { hour: '2-digit', minute: '2-digit' });
     };
+    const fmtHoverTime = t => {
+      return formatSingaporeTime(t, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
+    const tickvals = [];
+    const ticktext = [];
+    if (timesMs.length <= 10) {
+      for (let i = 0; i < timesMs.length; i++) {
+        tickvals.push(timesMs[i]);
+        ticktext.push(fmtAxisTime(timesMs[i]));
+      }
+    } else {
+      const step = Math.ceil(timesMs.length / 8);
+      for (let i = 0; i < timesMs.length; i += step) {
+        tickvals.push(timesMs[i]);
+        ticktext.push(fmtAxisTime(timesMs[i]));
+      }
+      if ((timesMs.length - 1) % step !== 0) {
+        tickvals.push(timesMs[timesMs.length - 1]);
+        ticktext.push(fmtAxisTime(timesMs[timesMs.length - 1]));
+      }
+    }
 
     const mode = df.length < 2 ? 'markers' : 'lines+markers';
     const segmentOrder = [...new Set(df.map(r => (Number.isFinite(r.segment_id) ? r.segment_id : 1)))];
@@ -535,11 +574,11 @@ function TimelineChart({ history, visibleLabels }) {
           }
           if (!idxs.length) continue;
           perSegment.push({
-            x: idxs.map(i => times[i]),
+            x: idxs.map(i => timesMs[i]),
             y: idxs.map(i => df[i][lbl]),
             customdata: idxs.map(i => ({
               level: LEVEL_LABELS[df[i][lbl]],
-              ts: fmtHoverTime(times[i]),
+              ts: fmtHoverTime(timesMs[i]),
             })),
             mode,
             connectgaps: false,
@@ -556,14 +595,16 @@ function TimelineChart({ history, visibleLabels }) {
       margin: { l:60,r:10,t:10,b:80 }, height:360,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
       xaxis: {
-        type: 'date',
+        type: 'linear',
         showgrid:true,
         gridcolor:'rgba(80,80,100,0.2)',
         showline:true,
         linecolor:'#666',
         linewidth:2,
         color:'#aaa',
-        tickformat: hasMultipleDays ? '%b %d\n%I:%M %p' : '%I:%M %p',
+        tickmode:'array',
+        tickvals,
+        ticktext,
         tickangle:-45,
         automargin:true,
         title:{ text: 'Time', font:{size:11,color:'#aaa'} },
@@ -654,8 +695,12 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
 
   const pad = v => String(v).padStart(2, '0');
   const fmtClock = epochMs => {
-    const d = new Date(epochMs);
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const parts = formatSingaporeTime(epochMs, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).split(':');
+    return `${pad(parts[0])}:${pad(parts[1])}`;
   };
 
   const uniqueSegmentIds = [...new Set(rawRows.map(r => r.segmentId))].sort((a, b) => a - b);
@@ -732,12 +777,18 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
 function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, onRestore, onClose, sessionId }) {
   // initialValues: array of 4 numbers summing to 100
   const [vals, setVals] = useState([...initialValues]);
+  const [justificationText, setJustificationText] = useState('');
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
 
   const sum = vals.reduce((s, v) => s + v, 0);
   const sumOk = Math.abs(sum - 100) <= 1; // allow 1% rounding tolerance
+  const maxChange = Math.max(...vals.map((v, i) => Math.abs(v - (initialValues[i] ?? 0))));
+  const hasChanged = maxChange > 0;
+  const minRequiredWords = maxChange > 20 ? 15 : 5;
+  const enteredWords = justificationText.trim() ? justificationText.trim().split(/\s+/).length : 0;
+  const textRequirementMet = !ENABLE_EDIT_TEXT_REQUIREMENT || !hasChanged || enteredWords >= minRequiredWords;
 
   // When a slider changes: adjust the last "free" other slider to keep sum = 100
   function handleChange(idx, newVal) {
@@ -780,6 +831,11 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
   async function handleSave() {
     setSaving(true);
     setSaveMsg('');
+    if (ENABLE_EDIT_TEXT_REQUIREMENT && hasChanged && enteredWords < minRequiredWords) {
+      setSaveMsg(`⚠ Please enter at least ${minRequiredWords} words explaining your edit.`);
+      setSaving(false);
+      return;
+    }
     try {
       await saveManualOverride(sessionId, bucketKey, label, vals);
       setSaveMsg('✓ Saved to Supabase');
@@ -829,6 +885,39 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
       e('span', { style:{color:'var(--muted)'} }, 'Sum'),
       e('span', { className:`edit-sum-val${sumOk ? '' : ' bad'}` }, `${sum}% ${sumOk ? '✓' : '— must be 100%'}`),
     ),
+    ENABLE_EDIT_TEXT_REQUIREMENT ? e('div', { style:{ marginTop:'0.55rem' } },
+      e('div', {
+        style:{
+          fontFamily:'var(--mono)',
+          fontSize:'0.66rem',
+          color:'var(--subtext)',
+          marginBottom:'0.3rem',
+        }
+      },
+      hasChanged
+        ? `Required explanation: ${minRequiredWords}+ words (${enteredWords} entered)`
+        : 'No slider change detected'
+      ),
+      e('textarea', {
+        value: justificationText,
+        onChange: ev => setJustificationText(ev.target.value),
+        placeholder:'Explain why you changed this prediction…',
+        rows: 3,
+        style:{
+          width:'100%',
+          resize:'vertical',
+          minHeight:'62px',
+          background:'#0f1220',
+          color:'var(--text)',
+          border:`1px solid ${hasChanged && !textRequirementMet ? 'var(--red)' : 'var(--border)'}`,
+          borderRadius:'6px',
+          padding:'0.45rem 0.5rem',
+          fontFamily:'var(--sans)',
+          fontSize:'0.74rem',
+          outline:'none',
+        }
+      })
+    ) : null,
     e('div', { className:'edit-actions' },
       e('button', { className:'btn-cancel edit-actions', onClick:onClose }, 'Cancel'),
       e('button', {
@@ -838,7 +927,7 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
       }, restoring ? 'Restoring…' : 'Restore'),
       e('button', {
         className:'btn-save',
-        disabled: !sumOk || saving || restoring,
+        disabled: !sumOk || saving || restoring || !textRequirementMet,
         onClick: handleSave,
       }, saving ? 'Saving…' : 'Save'),
     ),
@@ -925,6 +1014,7 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
     // Attach click handler (remove previous first to avoid stacking on re-renders)
     div.removeAllListeners('plotly_click');
     div.on('plotly_click', (data) => {
+      if (!ENABLE_GRAPH_SLIDER_EDIT) return;
       const pt = data.points?.[0];
       if (!pt) return;
       const bucketIdx   = pt.pointIndex;
@@ -973,10 +1063,17 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
           e('div', { className:'panel', style:{padding:'0.6rem'} },
             e('div', { className:'panel-header' }, `${LABEL_EMOJIS[label]} ${label} split`),
             e('div', { style:{fontSize:'0.72rem', color:'#9ba3c4', marginTop:'0.15rem', padding:'0 0.1rem'} }, '5 Min Windows'),
-            e('div', { className:'chart-click-hint' }, '💡 Click a bar to contest AI predictions you disagree with'),
+            ENABLE_GRAPH_SLIDER_EDIT
+              ? e('div', { className:'chart-click-hint' }, '💡 Click a bar to contest AI predictions you disagree with')
+              : e('div', { className:'chart-click-hint' }, '🔒 Slider editing is disabled by config flag'),
             e('div', {
               ref: el => chartRefs.current[idx] = el,
-              style:{width:'100%', minHeight:'160px', marginTop:'0.5rem', cursor:'pointer'},
+              style:{
+                width:'100%',
+                minHeight:'160px',
+                marginTop:'0.5rem',
+                cursor: ENABLE_GRAPH_SLIDER_EDIT ? 'pointer' : 'default',
+              },
             }),
           ),
           // Edit overlay — positioned above the card
@@ -1114,7 +1211,7 @@ function App() {
       if (prediction) {
         setCurrentPreds(prediction);
         setWindowCount(c => c + 1);
-        setLastPredTime(new Date().toLocaleTimeString());
+        setLastPredTime(formatSingaporeTime(Date.now(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         const ts = new Date().toISOString();
         const activeElapsedMs = Math.round(
           activeElapsedBeforePauseRef.current +
@@ -1308,7 +1405,7 @@ function App() {
             : e('div',{className:'iframe-placeholder'}, e('div',{className:'icon'},'🎬'), e('p',null,'Paste a URL above to load content')),
         ),
 
-        e('div', { className:'panel' },
+        SHOW_WEBCAM_PANEL ? e('div', { className:'panel' },
           e('div', { className:'panel-header' },
             e('span',null,'📷 Face capture'),
             running && e('span',{className:'live-pill'},'● LIVE — blendshape dicts only, no video leaves this device'),
@@ -1332,7 +1429,7 @@ function App() {
             e('div',{className:'stat'}, e('div',{className:'val'},history.length),e('div',{className:'key'},'Rows')),
             e('div',{className:'stat'}, e('div',{className:'val'},lastPredTime??'—'),e('div',{className:'key'},'Last pred')),
           ),
-        ),
+        ) : null,
       ),
 
       e('div', { style:{display:'flex',flexDirection:'column',gap:'1rem'} },
@@ -1358,7 +1455,7 @@ function App() {
           e('hr',{className:'div'}),
         ) : null,
 
-        e('details', null,
+        SHOW_DEBUG_PANEL ? e('details', null,
           e('summary',null,'🐛 Debug panel'),
           e('div',{className:'debug-box'},
             e('div',null, e('b',null,'MediaPipe: '), e('span',{className:modelReady?'ok':'err'},String(modelReady))),
@@ -1376,7 +1473,7 @@ function App() {
               e('button',{className:'btn-ghost',onClick:()=>{setHistory([]);setCurrentPreds(null);}},'🗑 Clear history'),
             ),
           ),
-        ),
+        ) : null,
       ),
     ),
   );
