@@ -728,7 +728,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
 
     // Insert a visual break between pause/resume segments.
     if (segIdx < uniqueSegmentIds.length - 1) {
-      labels.push(' ');
+      labels.push(' '.repeat(segIdx + 1));
       bucketKeys.push(`gap:${segmentId}`);
       editableMask.push(false);
       counts.push([0, 0, 0, 0]);
@@ -746,7 +746,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
 // ═══════════════════════════════════════════════════════════════
 // BAR EDIT PANEL — shown on bar click
 // ═══════════════════════════════════════════════════════════════
-function BarEditPanel({ label, bucketLabel, initialValues, onSave, onRestore, onClose, sessionId }) {
+function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, onRestore, onClose, sessionId }) {
   // initialValues: array of 4 numbers summing to 100
   const [vals, setVals] = useState([...initialValues]);
   const [saving, setSaving] = useState(false);
@@ -798,7 +798,7 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onRestore, on
     setSaving(true);
     setSaveMsg('');
     try {
-      await saveManualOverride(sessionId, bucketLabel, label, vals);
+      await saveManualOverride(sessionId, bucketKey, label, vals);
       setSaveMsg('✓ Saved to Supabase');
       setTimeout(() => { setSaveMsg(''); onSave(vals); }, 1000);
     } catch (err) {
@@ -812,7 +812,7 @@ function BarEditPanel({ label, bucketLabel, initialValues, onSave, onRestore, on
     setRestoring(true);
     setSaveMsg('');
     try {
-      await clearManualOverride(sessionId, bucketLabel, label);
+      await clearManualOverride(sessionId, bucketKey, label);
       setSaveMsg('↺ Restored original prediction');
       setTimeout(() => { setSaveMsg(''); onRestore(); }, 500);
     } catch (err) {
@@ -893,10 +893,10 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
 
     const traces = LEVEL_LABELS.map((lvl, li) => ({
       x: labels,
-      y: percentagesPerLevel[li],
+      y: labels.map((lbl, bi) => (lbl.trim() ? percentagesPerLevel[li][bi] : null)),
       name: lvl, type: 'bar',
       marker: { color: LEVEL_COLORS[li] },
-      text: percentagesPerLevel[li].map(v => `${v}%`),
+      text: labels.map((lbl, bi) => (lbl.trim() ? `${percentagesPerLevel[li][bi]}%` : '')),
       textposition: 'auto',
       hovertemplate: `<b>${label} — ${lvl}</b><br>%{x}: %{y}%<extra></extra>`,
     }));
@@ -974,6 +974,7 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
             e(BarEditPanel, {
               label,
               bucketLabel: editState.bucketLabel,
+              bucketKey: editState.bucketKey,
               initialValues: editState.initialValues,
               sessionId,
               onSave: handleSave,
@@ -1024,6 +1025,7 @@ function App() {
   const sessionRef   = useRef(null);
   const activeElapsedBeforePauseRef = useRef(0);
   const activeRunStartedAtRef = useRef(null);
+  const activeSegmentRef = useRef(1);
 
   useEffect(() => {
     const missing = [];
@@ -1106,6 +1108,7 @@ function App() {
           Math.max(0, now - (activeRunStartedAtRef.current ?? now))
         );
         const row = { predicted_at: ts, active_elapsed_ms: activeElapsedMs };
+        row.segment_id = activeSegmentRef.current;
         for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
         setHistory(h => [...h.slice(-179), row]);
         insertPrediction(null, sessionRef.current, prediction)
@@ -1123,6 +1126,7 @@ function App() {
     frameBuffer.current = []; throttleRef.current = 0;
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = performance.now();
+    activeSegmentRef.current = 1;
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
     catch(e) { setLastError('Camera access denied: ' + e.message); return; }
@@ -1145,6 +1149,7 @@ function App() {
   const handlePauseToggle = useCallback(() => {
     if (!running) return;
     if (paused) {
+      activeSegmentRef.current += 1;
       activeRunStartedAtRef.current = performance.now();
       pausedRef.current = false; setPaused(false);
       runningRef.current = true;
@@ -1165,6 +1170,7 @@ function App() {
     runningRef.current = false; pausedRef.current = false;
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = null;
+    activeSegmentRef.current = 1;
     setRunning(false); setPaused(false);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -1181,15 +1187,18 @@ function App() {
       const label = Math.floor(Math.random() * 4);
       dummy[lbl] = { label, probabilities: Array.from({length:4}, () => +Math.random().toFixed(4)) };
     }
-    const lastActiveElapsedMs = history.length
-      ? (history[history.length - 1].active_elapsed_ms ?? history.length * WINDOW_SECONDS * 1000)
-      : 0;
-    const row = {
-      predicted_at: new Date().toISOString(),
-      active_elapsed_ms: lastActiveElapsedMs + WINDOW_SECONDS * 1000,
-    };
-    for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
-    setHistory(h => [...h, row]);
+    setHistory(h => {
+      const lastActiveElapsedMs = h.length
+        ? (h[h.length - 1].active_elapsed_ms ?? h.length * WINDOW_SECONDS * 1000)
+        : 0;
+      const row = {
+        predicted_at: new Date().toISOString(),
+        active_elapsed_ms: lastActiveElapsedMs + WINDOW_SECONDS * 1000,
+        segment_id: activeSegmentRef.current,
+      };
+      for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
+      return [...h, row];
+    });
     setCurrentPreds(dummy);
     setWindowCount(c => c + 1);
   }, []);
@@ -1318,7 +1327,7 @@ function App() {
         paused ? e('div', { className:'panel' },
           e('div',{className:'panel-header'},'📊 Emotion Intensity Distribution Across Time Segments (5-Min Intervals)'),
           // ── LabelSplitCharts now receives sessionId ──
-          e(LabelSplitCharts, { history, sessionId, overrides, setOverrides }),
+          e(LabelSplitCharts, { history, sessionId, overrides, setOverrides, editableSegmentId: activeSegmentRef.current }),
           e('div', { className:'panel-header', style:{ marginTop:'0.25rem' } }, '📈 Emotion Intensity Timeline View'),
           e('div', { style:{ display:'flex', gap:'1rem', padding:'0.7rem 1rem', flexWrap:'wrap', alignItems:'center' } },
             LABEL_COLS.map(lbl => e('label', { key:lbl, style:{ display:'flex', alignItems:'center', gap:'0.4rem', cursor:'pointer', color:'#ccc', fontSize:'0.85rem' } },
