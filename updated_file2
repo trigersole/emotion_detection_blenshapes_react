@@ -455,15 +455,7 @@ async function createSession(label = '', metadata = {}) {
   return data?.[0]?.id ?? null;
 }
 
-async function insertFrame(sessionId, features, faceDetected = true) {
-  if (!sessionId) return null;
-  const data = await sbRequest('blendshape_frames', 'POST', {
-    session_id: sessionId, features, face_detected: faceDetected,
-  });
-  return data?.[0]?.id ?? null;
-}
-
-async function insertPrediction(frameId, sessionId, prediction) {
+async function insertPrediction(sessionId, prediction, aggFeatures) {
   if (!sessionId) return;
   const labelsFlat = {}, probsFlat = {};
   let maxConf = 0;
@@ -475,12 +467,12 @@ async function insertPrediction(frameId, sessionId, prediction) {
     if (conf > maxConf) maxConf = conf;
   }
   await sbRequest('emotion_predictions', 'POST', {
-    frame_id: frameId ?? null,
     session_id: sessionId,
     label: JSON.stringify(labelsFlat),
     confidence: parseFloat(maxConf.toFixed(5)),
     probabilities: probsFlat,
     model_version: MODEL_VERSION,
+    raw_data: aggFeatures ?? null,
   });
 }
 
@@ -514,6 +506,22 @@ async function getManualOverrides(sessionId) {
     session_id: `eq.${sessionId}`,
     order: 'overridden_at.desc',
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// USER ACTION LOGGER
+// ═══════════════════════════════════════════════════════════════
+async function logEvent(sessionId, eventName, eventData = {}) {
+  try {
+    return await sbRequest('logs', 'POST', {
+      session_id: sessionId ?? null,
+      event_name: eventName,
+      event_data: eventData,
+      time_stamp: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('[logEvent]', eventName, e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -838,6 +846,12 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
     }
     try {
       await saveManualOverride(sessionId, bucketKey, label, vals);
+      await logEvent(sessionId, 'changes_made', {
+        label,
+        bucket_key: bucketKey,
+        new_values: vals,
+        justification: justificationText,
+      });
       setSaveMsg('✓ Saved to Supabase');
       setTimeout(() => { setSaveMsg(''); onSave(vals); }, 1000);
     } catch (err) {
@@ -1222,7 +1236,7 @@ function App() {
         row.segment_start_ts = segmentStartedAtWallClockRef.current;
         for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
         setHistory(h => [...h.slice(-179), row]);
-        insertPrediction(null, sessionRef.current, prediction)
+        insertPrediction(sessionRef.current, prediction, agg)
           .catch(e => setLastError('[supabase] insertPrediction: ' + String(e)));
       }
     }
@@ -1247,12 +1261,14 @@ function App() {
     await videoRef.current.play();
     setCameraReady(true);
     if (canvasRef.current) drawUtils.current = new DrawingUtils(canvasRef.current.getContext('2d'));
-    let sid = null;
+    let newSessionId = null;
     try {
       const label = userName ? `${userName}${contentUrl ? ' - ' + contentUrl.slice(0,80) : ''}` : (contentUrl.slice(0,80) || 'unlabelled');
-      sid = await createSession(label, { url: contentUrl });
+      newSessionId = await createSession(label, { url: contentUrl });
+      await logEvent(newSessionId, 'session_open', { id: newSessionId });
     } catch(e) { setLastError('[supabase] createSession: ' + String(e)); }
-    setSessionId(sid); sessionRef.current = sid;
+    setSessionId(newSessionId); sessionRef.current = newSessionId;
+    await logEvent(newSessionId, 'session_started', {});
     runningRef.current = true; pausedRef.current = false;
     setRunning(true); setPaused(false);
     rafRef.current = requestAnimationFrame(processFrame);
@@ -1267,6 +1283,7 @@ function App() {
       pausedRef.current = false; setPaused(false);
       runningRef.current = true;
       rafRef.current = requestAnimationFrame(processFrame);
+      logEvent(sessionRef.current, 'session_resumed', {}).catch(() => {});
       return;
     }
     activeElapsedBeforePauseRef.current += Math.max(
@@ -1277,9 +1294,11 @@ function App() {
     pausedRef.current = true; setPaused(true);
     runningRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    logEvent(sessionRef.current, 'session_paused', {}).catch(() => {});
   }, [running, paused, processFrame]);
 
   const handleStop = useCallback(() => {
+    logEvent(sessionRef.current, 'session_stopped', {}).catch(() => {});
     runningRef.current = false; pausedRef.current = false;
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = null;
@@ -1373,6 +1392,7 @@ function App() {
         className:'url-input', type:'text',
         placeholder:'Paste a lecture / video URL…',
         value:contentUrl, onChange:ev=>setContentUrl(ev.target.value),
+        onBlur: ev => { if (ev.target.value) logEvent(sessionRef.current, 'link_pasted', { link_url: ev.target.value }).catch(() => {}); },
         disabled:running,
       }),
       e('div', { className:'controls-row' },
