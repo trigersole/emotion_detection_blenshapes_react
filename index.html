@@ -10,20 +10,22 @@
   "imports": {
     "react": "https://esm.sh/react@18",
     "react-dom/client": "https://esm.sh/react-dom@18/client",
-    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm",
-    "@gradio/client": "https://esm.sh/@gradio/client"
+    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm"
   }
 }
 </script>
 <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:opsz,wght@9..40,300;9..40,500;9..40,700&display=swap');
+      .admin-sticky-heading { position:sticky; top:0; z-index:7; background:var(--surface); padding-top:0.15rem; padding-bottom:0.35rem; }
+      .admin-session-section { display:flex; flex-direction:column; flex:1; min-height:0; margin-top:0.35rem; }
+      .admin-session-table-wrap { flex:1; min-height:420px; max-height:none; }
 
   :root {
     --bg:       #0a0c12;
     --surface:  #111420;
     --border:   #1e2235;
+    --admin-top-height: 500px;
     --accent:   #10B981;
     --amber:    #F59E0B;
     --red:      #EF4444;
@@ -131,7 +133,65 @@
   .dbg-btns { display:flex; gap:0.5rem; margin-top:0.5rem; }
   .name-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:50; }
   .name-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.25rem; width:min(680px,92%); }
-  .name-row { display:flex; gap:0.5rem; margin-top:0.75rem; }
+  .name-row { display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap; }
+  .gateway-wrap { min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:1.2rem; }
+  .gateway-wrap.login-gateway-wrap { align-items:center; }
+  .gateway-admin-shell { width:min(1500px, 100%); display:flex; flex-direction:column; gap:0.65rem; }
+  .gateway-grid { width:100%; display:grid; grid-template-columns:20% 80%; gap:0; align-items:stretch; }
+  .gateway-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1rem; }
+  .gateway-card.dashboard-card { display:flex; flex-direction:column; min-height:78vh; }
+  .gateway-card.admin-controls-card { min-height:var(--admin-top-height); }
+  .gateway-card.admin-groups-card { display:flex; flex-direction:column; min-height:var(--admin-top-height); }
+  .admin-group-table-wrap { height:var(--admin-top-height); max-height:var(--admin-top-height); }
+  .gateway-title { font-family:var(--mono); font-size:0.9rem; color:var(--text); margin-bottom:0.65rem; }
+  .gateway-sub { font-size:0.75rem; color:var(--subtext); margin-bottom:0.8rem; }
+  .field-label { display:block; margin:0.5rem 0 0.32rem; font-size:0.68rem; color:var(--subtext); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.06em; }
+  .admin-sticky-heading { position:sticky; top:0; z-index:7; background:var(--surface); padding-top:0.15rem; padding-bottom:0.35rem; }
+  .admin-session-section { display:flex; flex-direction:column; flex:1; min-height:0; margin-top:0; padding-top:0; border-top:none; }
+  .admin-session-table-wrap { flex:1; min-height:0; max-height:none; width:100%; border-color:#2f3751; }
+  .admin-table.admin-session-table { font-size:0.79rem; min-width:1900px; }
+  .admin-table.admin-session-table th,
+  .admin-table.admin-session-table td { padding:0.62rem 0.58rem; border-right:1px solid #2f3751; border-bottom:1px solid #2a3148; }
+  .admin-table.admin-session-table th:nth-child(3n + 7),
+  .admin-table.admin-session-table td:nth-child(3n + 7) { border-right:2px solid #4a536f; }
+  .admin-table.admin-session-table th.sticky-col,
+  .admin-table.admin-session-table td.sticky-col { border-right:2px solid #525d7c; }
+  .admin-table.admin-session-table tbody tr:nth-child(even) { background:rgba(255,255,255,0.025); }
+  .admin-table.admin-session-table th { background:#1a2032; }
+  .split-row { display:grid; grid-template-columns:1fr 1fr; gap:0.55rem; }
+  .table-wrap { max-height:300px; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+  .table-wrap.wide { overflow:auto; }
+  .admin-table.wide { min-width:1480px; }
+  .admin-table { width:100%; border-collapse:separate; border-spacing:0; font-size:0.73rem; }
+  .admin-table th, .admin-table td { border-bottom:1px solid var(--border); border-right:1px solid var(--border); text-align:left; padding:0.48rem 0.45rem; white-space:nowrap; }
+  .admin-table tr > *:last-child { border-right:none; }
+  .admin-table th { font-family:var(--mono); font-size:0.65rem; color:var(--subtext); text-transform:uppercase; letter-spacing:0.05em; background:rgba(255,255,255,0.02); position:sticky; top:0; }
+  .admin-th-two-line { display:flex; flex-direction:column; gap:0.12rem; line-height:1.15; }
+  .admin-th-two-line .top { font-family:var(--mono); font-size:0.62rem; color:var(--subtext); letter-spacing:0.04em; }
+  .admin-th-two-line .bottom { font-family:var(--sans); font-size:0.68rem; color:var(--text); text-transform:none; letter-spacing:0; }
+  .admin-table .sticky-col { position:sticky; background:var(--surface); background-clip:padding-box; }
+  .admin-table th.sticky-col { z-index:10; background:#161a27; }
+  .admin-table td.sticky-col { z-index:5; }
+  .group-id-btn {
+    border:1px solid #374151;
+    border-radius:999px;
+    padding:0.18rem 0.5rem;
+    background:rgba(31,41,55,.6);
+    color:#cbd5e1;
+    font-size:0.68rem;
+    font-family:var(--mono);
+    cursor:pointer;
+  }
+  .group-id-btn.active {
+    border-color:var(--accent);
+    color:var(--accent);
+    background:rgba(16,185,129,.13);
+  }
+  .pill { display:inline-flex; align-items:center; border:1px solid #374151; background:rgba(31,41,55,.6); border-radius:999px; padding:0.18rem 0.5rem; font-size:0.63rem; color:#cbd5e1; }
+  .summary-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.45rem; margin-bottom:0.7rem; }
+  .summary-box { border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.6rem; background:rgba(255,255,255,0.02); }
+  .summary-box .k { color:var(--muted); font-size:0.63rem; text-transform:uppercase; letter-spacing:0.06em; font-family:var(--mono); }
+  .summary-box .v { margin-top:0.2rem; font-family:var(--mono); font-size:0.95rem; color:var(--text); }
   hr.div { border:none; border-top:1px solid var(--border); margin:0.6rem 0; }
 
   /* ── Bar Edit Overlay ── */
@@ -178,6 +238,75 @@
     gap: 0.5rem;
     margin-bottom: 0.45rem;
   }
+  .edit-level-slider-container {
+    position: relative;
+    flex: 1;
+    height: 20px;
+    display: flex;
+    align-items: center;
+  }
+  .edit-level-slider-stack {
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .edit-level-slider-stack input {
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 2px;
+    outline: none;
+    pointer-events: none;
+  }
+  .edit-level-slider-stack input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #0a0c12;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .edit-level-slider-stack input::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #0a0c12;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .edit-level-slider-ai {
+    background: #2d3350;
+    z-index: 4;
+  }
+  .edit-level-slider-ai::-webkit-slider-thumb {
+    background: #6B7280;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .edit-level-slider-ai::-moz-range-thumb {
+    background: #6B7280;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .edit-level-slider-edit {
+    background: transparent;
+    z-index: 5;
+  }
+  .edit-level-slider-edit::-webkit-slider-thumb {
+    background: var(--accent);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .edit-level-slider-edit::-moz-range-thumb {
+    background: var(--accent);
+    cursor: pointer;
+    pointer-events: auto;
+  }
   .edit-level-dot {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   }
@@ -205,6 +334,16 @@
     cursor: pointer;
     border: 2px solid #0a0c12;
   }
+  .edit-level-slider:disabled {
+    background: #2d3350;
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .edit-level-slider:disabled::-webkit-slider-thumb {
+    background: #6B7280;
+    cursor: not-allowed;
+    border-color: #4a5568;
+  }
   .edit-level-val {
     font-family: var(--mono);
     font-size: 0.72rem;
@@ -212,6 +351,15 @@
     width: 36px;
     text-align: right;
     flex-shrink: 0;
+  }
+  .edit-level-val-orig {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    color: var(--muted);
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+    opacity: 0.6;
   }
   .edit-sum-row {
     display: flex;
@@ -274,6 +422,10 @@
   ::-webkit-scrollbar { width:4px; }
   ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  @media (max-width: 960px) {
+    .gateway-grid { grid-template-columns:1fr; }
+  }
 </style>
 </head>
 <body>
@@ -284,11 +436,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 
+
 // ═══════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════
-const HF_TOKEN    = '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';
-const HF_SPACE    = 'Trylio/oelm_xgb';
+// ── Hugging Face Space API endpoint ──────────────────────────────
+// Set this to your Hugging Face Docker Space public URL after deploying:
+const HF_SPACE_URL = '';
+const API_BASE_URL = HF_SPACE_URL;
 
 const SUPABASE_URL = 'https://idrukwbcxfimbuzcdvkk.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkcnVrd2JjeGZpbWJ1emNkdmtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NTk5NjMsImV4cCI6MjA5MjMzNTk2M30.xPhQTCrWRbmNWnfgASpS8G9R_S8MpTidxMzvgzbx3VM';
@@ -298,13 +453,46 @@ const WINDOW_SECONDS = 10;
 const WINDOW_FRAMES  = CAPTURE_FPS * WINDOW_SECONDS;  // 50
 const MODEL_VERSION  = 'xgb-v1';
 const SINGAPORE_TZ   = 'Asia/Singapore';
-const ENABLE_GRAPH_SLIDER_EDIT = true;
-const ENABLE_EDIT_TEXT_REQUIREMENT = true;
 const SHOW_WEBCAM_PANEL = true;
 const SHOW_DEBUG_PANEL = true;
+const ADMIN_USER_ID = '1729';
+const ADMIN_PASSWORD = 'OELM@2026';
+const MANUAL_OVERRIDE_TABLE = 'manual_overrides';
+const MANUAL_OVERRIDE_CHANGE_THRESHOLD_PERCENT = 20;
+
+const SESSION_GROUP_TYPES = {
+  WITHOUT_EDIT: 'without_edit',
+  WITH_EDIT: 'with_edit',
+  WITH_EDIT_JUSTIFICATION: 'with_edit_justification',
+};
+
+const SESSION_GROUP_TYPE_LABELS = {
+  [SESSION_GROUP_TYPES.WITHOUT_EDIT]: 'No Edit',
+  [SESSION_GROUP_TYPES.WITH_EDIT]: 'With Edit',
+  [SESSION_GROUP_TYPES.WITH_EDIT_JUSTIFICATION]: 'With Edit + Text',
+};
+
+function getEditPolicyByType(groupType) {
+  if (groupType === SESSION_GROUP_TYPES.WITHOUT_EDIT) {
+    return { canEdit: false, requireTextJustification: false };
+  }
+  if (groupType === SESSION_GROUP_TYPES.WITH_EDIT) {
+    return { canEdit: true, requireTextJustification: false };
+  }
+  return { canEdit: true, requireTextJustification: true };
+}
+
+function generateSessionGroupPassword(length = 8) {
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
 
 function formatSingaporeTime(value, options = {}) {
-  return new Date(value).toLocaleString([], { timeZone: SINGAPORE_TZ, ...options });
+  return new Date(value).
+  
+  toLocaleString([], { timeZone: SINGAPORE_TZ, ...options });
 }
 
 function singaporeDayKey(value) {
@@ -352,6 +540,26 @@ const LABEL_COLORS = { Boredom:'#6B7280', Engagement:'#10B981', Confusion:'#F59E
 const LABEL_EMOJIS = { Boredom:'', Engagement:'', Confusion:'', Frustration:'' };
 const LEVEL_LABELS = ['Very Low','Low','High','Very High'];
 const LEVEL_COLORS = ['#6B7280', '#60A5FA', '#10B981', '#F59E0B'];
+
+const PLOTLY_STATIC_CONFIG = {
+  displayModeBar: false,
+  responsive: true,
+  scrollZoom: false,
+  doubleClick: false,
+  editable: false,
+  showTips: false,
+  staticPlot: true,
+};
+
+const PLOTLY_EDIT_CONFIG = {
+  displayModeBar: false,
+  responsive: true,
+  scrollZoom: false,
+  doubleClick: false,
+  editable: false,
+  showTips: false,
+  staticPlot: false,
+};
 
 // ═══════════════════════════════════════════════════════════════
 // extractBlendshapes()
@@ -403,29 +611,73 @@ function aggregateWindow(frames) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HF Gradio client
+// Inference client — Hugging Face Space / FastAPI
 // ═══════════════════════════════════════════════════════════════
-import { Client } from "@gradio/client";
-let hfClient = null;
-async function getHFClient() {
-  if (!hfClient) {
-    try { hfClient = await Client.connect(HF_SPACE, { hf_token: HF_TOKEN }); }
-    catch (err) { hfClient = null; throw err; }
-  }
-  return hfClient;
-}
 async function classifyWindow(aggregatedFeatures) {
+  if (!API_BASE_URL) {
+    console.warn('[API] API_BASE_URL is not set.');
+    return null;
+  }
+  const orderedFeatures = {};
+  for (const k of FEATURE_ORDER) orderedFeatures[k] = aggregatedFeatures[k] ?? 0;
+
+  // Support both FastAPI (/predict) and HF Gradio Space APIs.
+  const attempts = [
+    {
+      url: `${API_BASE_URL}/predict`,
+      body: { agg_features: orderedFeatures },
+    },
+    {
+      url: `${API_BASE_URL}/api/predict`,
+      body: { agg_features: orderedFeatures },
+    },
+    {
+      url: `${API_BASE_URL}/api/predict`,
+      body: { data: [orderedFeatures] },
+    },
+  ];
+
   try {
-    const client = await getHFClient();
-    const orderedFeatures = {};
-    for (const k of FEATURE_ORDER) orderedFeatures[k] = aggregatedFeatures[k] ?? 0;
-    const result = await client.predict("/predict", { agg_features: orderedFeatures });
-    const raw = result?.data?.[0] ?? null;
-    if (!raw) { console.warn('[HF] Empty response:', result); return null; }
-    return raw;
+    for (const attempt of attempts) {
+      const res = await fetch(attempt.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(attempt.body),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.warn('[API] HTTP error:', attempt.url, res.status, text.slice(0, 200));
+        continue;
+      }
+
+      const payload = await res.json();
+
+      // FastAPI returns prediction object directly.
+      if (payload && payload.Boredom && payload.Engagement && payload.Confusion && payload.Frustration) {
+        return payload;
+      }
+
+      // Some Gradio variants return { data: [predictionObject] }.
+      if (
+        payload &&
+        Array.isArray(payload.data) &&
+        payload.data[0] &&
+        payload.data[0].Boredom &&
+        payload.data[0].Engagement &&
+        payload.data[0].Confusion &&
+        payload.data[0].Frustration
+      ) {
+        return payload.data[0];
+      }
+
+      // If response shape differs, keep trying fallbacks.
+      console.warn('[API] Unexpected response shape from', attempt.url, payload);
+    }
+
+    return null;
   } catch (err) {
-    console.error('[HF] classify error:', err);
-    hfClient = null;
+    console.error('[API] classify error:', err);
     return null;
   }
 }
@@ -433,17 +685,22 @@ async function classifyWindow(aggregatedFeatures) {
 // ═══════════════════════════════════════════════════════════════
 // SUPABASE HELPERS
 // ═══════════════════════════════════════════════════════════════
-async function sbRequest(table, method, body, params) {
+async function sbRequest(table, method, body, params, options = {}) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   let url = `${SUPABASE_URL}/rest/v1/${table}`;
   if (params) url += '?' + new URLSearchParams(params).toString();
+  const extraHeaders = options.headers || {};
+  const preferHeader = options.prefer
+    ? `${options.prefer},return=representation`
+    : 'return=representation';
   const res = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Prefer': 'return=representation',
+      'Prefer': preferHeader,
+      ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -457,13 +714,22 @@ async function sbRequest(table, method, body, params) {
   return res.json();
 }
 
-async function createSession(label = '', metadata = {}) {
-  const data = await sbRequest('sessions', 'POST', { label, metadata });
-  return data?.[0]?.id ?? null;
+async function createSession(label = '', sessionGroup = '', userId = '', sessionGroupType = '') {
+  const sessionUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null;
+  const payload = {
+    label,
+    session_group: sessionGroup,
+    user_id: userId,
+    session_group_type: sessionGroupType,
+  };
+  if (sessionUuid) payload.session_id = sessionUuid;
+
+  const data = await sbRequest('sessions', 'POST', payload);
+  return data?.[0]?.session_id ?? data?.[0]?.id ?? null;
 }
 
-async function insertPrediction(sessionId, prediction, aggFeatures) {
-  if (!sessionId) return;
+async function insertPrediction(sessionUuid, userId, prediction, aggFeatures, pauseAndReflectNumber) {
+  if (!sessionUuid) return;
   const labelsFlat = {}, probsFlat = {};
   let maxConf = 0;
   for (const lbl of LABEL_COLS) {
@@ -474,7 +740,9 @@ async function insertPrediction(sessionId, prediction, aggFeatures) {
     if (conf > maxConf) maxConf = conf;
   }
   await sbRequest('emotion_predictions', 'POST', {
-    session_id: sessionId,
+    session_id: sessionUuid,
+    user_id: userId || null,
+    pause_and_reflect_number: pauseAndReflectNumber ?? null,
     label: JSON.stringify(labelsFlat),
     confidence: parseFloat(maxConf.toFixed(5)),
     probabilities: probsFlat,
@@ -484,46 +752,302 @@ async function insertPrediction(sessionId, prediction, aggFeatures) {
 }
 
 // ── NEW: Save manual override to Supabase ──────────────────────
-// Stores in a `manual_overrides` table: session_id, bucket_label, label_col,
+// Stores in a manual override table: session_id, session_group, bucket_label, label_col,
 // level_percentages (json), overridden_at.
 // If the table doesn't exist yet it'll throw — gracefully caught in the UI.
-async function saveManualOverride(sessionId, bucketLabel, labelCol, levelPercentages) {
-  return sbRequest('manual_overrides', 'POST', {
-    session_id:        sessionId,
-    bucket_label:      bucketLabel,
-    label_col:         labelCol,
-    level_percentages: levelPercentages,  // array [veryLow%, low%, high%, veryHigh%]
-    overridden_at:     new Date().toISOString(),
-  });
-}
+async function saveManualOverride(
+  sessionUuid,
+  sessionGroup,
+  bucketLabel,
+  labelCol,
+  levelPercentages,
+  originalPredictions,
+  pauseAndReflectNumber,
+  justification,
+  userId,
+) {
+  const maxChange = Math.max(...(levelPercentages || []).map((v, i) => Math.abs((Number(v) || 0) - (Number(originalPredictions?.[i]) || 0))), 0);
+  const isMajorChange = maxChange > MANUAL_OVERRIDE_CHANGE_THRESHOLD_PERCENT;
+  const isMinorChange = maxChange <= MANUAL_OVERRIDE_CHANGE_THRESHOLD_PERCENT;
+  const wordsEdited = (justification || '').trim()
+    ? (justification || '').trim().split(/\s+/).length
+    : 0;
 
-async function clearManualOverride(sessionId, bucketLabel, labelCol) {
-  if (!sessionId) return null;
-  return sbRequest('manual_overrides', 'DELETE', null, {
-    session_id: `eq.${sessionId}`,
+  const overrideAt = new Date().toISOString();
+  const pauseFilter = (pauseAndReflectNumber === null || pauseAndReflectNumber === undefined)
+    ? 'is.null'
+    : `eq.${pauseAndReflectNumber}`;
+
+  const nextPayload = {
+    session_id:          sessionUuid,
+    session_group:       sessionGroup,
+    user_id:             userId || null,
+    pause_and_reflect_number: pauseAndReflectNumber ?? null,
+    bucket_label:        bucketLabel,
+    label_col:           labelCol,
+    level_percentages:   levelPercentages,  // array [veryLow%, low%, high%, veryHigh%]
+    original_predictions: originalPredictions,
+    is_major_change:     isMajorChange,
+    is_minor_change:     isMinorChange,
+    words_edited:        wordsEdited,
+    overridden_at:       overrideAt,
+    justification:       justification || null,
+    status:              true,
+  };
+
+  // Deactivate previously active row(s) for the same bucket/label/session (+ pause bucket).
+  await sbRequest(MANUAL_OVERRIDE_TABLE, 'PATCH', {
+    status: false,
+  }, {
+    session_id: `eq.${sessionUuid}`,
+    session_group: `eq.${sessionGroup}`,
+    user_id: userId ? `eq.${userId}` : 'is.null',
     bucket_label: `eq.${bucketLabel}`,
     label_col: `eq.${labelCol}`,
+    pause_and_reflect_number: pauseFilter,
+    status: 'eq.true',
+  });
+
+  try {
+    return await sbRequest(MANUAL_OVERRIDE_TABLE, 'POST', nextPayload);
+  } catch (err) {
+    const msg = String(err || '');
+    if (!msg.includes('23505') && !/duplicate/i.test(msg)) throw err;
+
+    // Conflict-safe fallback for schemas with a unique key on
+    // (session_id, bucket_label, label_col). This keeps latest values active.
+    return sbRequest(
+      MANUAL_OVERRIDE_TABLE,
+      'POST',
+      nextPayload,
+      { on_conflict: 'session_id,bucket_label,label_col' },
+      { prefer: 'resolution=merge-duplicates' },
+    );
+  }
+}
+
+async function clearManualOverride(sessionUuid, sessionGroup, bucketLabel, labelCol) {
+  if (!sessionUuid) return null;
+  return sbRequest(MANUAL_OVERRIDE_TABLE, 'PATCH', {
+    status: false,
+  }, {
+    session_id: `eq.${sessionUuid}`,
+    session_group: `eq.${sessionGroup}`,
+    bucket_label: `eq.${bucketLabel}`,
+    label_col: `eq.${labelCol}`,
+    status: 'eq.true',
   });
 }
 
-async function getManualOverrides(sessionId) {
-  if (!sessionId) return [];
-  return sbRequest('manual_overrides', 'GET', null, {
+async function getManualOverrides(sessionUuid, sessionGroup) {
+  if (!sessionUuid) return [];
+  return sbRequest(MANUAL_OVERRIDE_TABLE, 'GET', null, {
     select: 'bucket_label,label_col,level_percentages',
-    session_id: `eq.${sessionId}`,
+    session_id: `eq.${sessionUuid}`,
+    session_group: `eq.${sessionGroup}`,
+    status: 'eq.true',
     order: 'overridden_at.desc',
   });
+}
+
+async function fetchLoginCredentials() {
+  const rows = await sbRequest('login_credentials', 'GET', null, {
+    select: 'session_group,password,date,type,session_description',
+    order: 'date.desc',
+    limit: '500',
+  }) || [];
+  return rows.map(r => ({
+    id: r.session_group,
+    password: r.password,
+    created_at: r.date,
+    type: r.type,
+    description: r.session_description || '',
+  }));
+}
+
+async function createLoginCredential(group) {
+  return sbRequest('login_credentials', 'POST', {
+    session_group: group.id,
+    password: group.password,
+    date: group.created_at,
+    type: group.type,
+    session_description: group.description,
+  });
+}
+
+async function fetchAdminSessionOverview() {
+  const sessions = await sbRequest('sessions', 'GET', null, {
+    select: 'id,session_id,label,created_at,session_group,session_group_type,user_id',
+    order: 'created_at.desc',
+    limit: '500',
+  }) || [];
+
+  const predictionRows = await sbRequest('emotion_predictions', 'GET', null, {
+    select: 'session_id,user_id,pause_and_reflect_number,predicted_at',
+    order: 'predicted_at.desc',
+    limit: '20000',
+  }) || [];
+
+  const overrideRows = await sbRequest(MANUAL_OVERRIDE_TABLE, 'GET', null, {
+    select: 'session_id,session_group,user_id,pause_and_reflect_number,bucket_label,is_minor_change,is_major_change,words_edited,overridden_at,status',
+    status: 'eq.true',
+    order: 'overridden_at.desc',
+    limit: '10000',
+  }) || [];
+
+  const editLogs = await sbRequest('logs', 'GET', null, {
+    select: 'session_id,session_group,event_name,time_stamp',
+    event_name: 'eq.changes_made',
+    order: 'time_stamp.desc',
+    limit: '5000',
+  }) || [];
+
+  const editsBySession = {};
+  for (const row of editLogs) {
+    if (!row?.session_id) continue;
+    editsBySession[row.session_id] = (editsBySession[row.session_id] || 0) + 1;
+  }
+
+  const defaultEditMetrics = () => ({
+    manual_override_count: 0,
+    max_pause_and_reflect_number: 0,
+    par_metrics: {},
+  });
+
+  const metricsBySession = {};
+  const sessionMetaById = {};
+
+  const normalizeIdentity = (sessionIdRaw, userIdRaw) => {
+    const sessionId = String(sessionIdRaw || '').trim();
+    const userId = String(userIdRaw || '').trim();
+    if (sessionId && userId) return `sid:${sessionId}|uid:${userId}`;
+    if (sessionId) return `sid:${sessionId}`;
+    if (userId) return `uid:${userId}`;
+    return null;
+  };
+
+  for (const row of sessions) {
+    const sessionId = row?.session_id ?? row?.id;
+    const identityKey = normalizeIdentity(sessionId, row?.user_id);
+    if (!identityKey) continue;
+    sessionMetaById[identityKey] = {
+      id: String(sessionId || identityKey),
+      label: row.label || '',
+      created_at: row.created_at || null,
+      group_id: row.session_group || 'unassigned',
+      group_type: row.session_group_type || '',
+      user_id: row.user_id || '',
+    };
+  }
+
+  for (const row of predictionRows) {
+    const identityKey = normalizeIdentity(row?.session_id, row?.user_id);
+    if (!identityKey) continue;
+    if (!metricsBySession[identityKey]) metricsBySession[identityKey] = defaultEditMetrics();
+
+    if (!sessionMetaById[identityKey]) {
+      sessionMetaById[identityKey] = {
+        id: String(row?.session_id || identityKey),
+        label: '',
+        created_at: row.predicted_at || null,
+        group_id: 'unassigned',
+        group_type: '',
+        user_id: row.user_id || '',
+      };
+    }
+
+    const m = metricsBySession[identityKey];
+    const segmentNumber = Number(row.pause_and_reflect_number ?? null);
+    if (!Number.isFinite(segmentNumber) || segmentNumber <= 0) continue;
+
+    if (segmentNumber > m.max_pause_and_reflect_number) {
+      m.max_pause_and_reflect_number = segmentNumber;
+    }
+  }
+
+  for (const row of overrideRows) {
+    if (row?.status !== true) continue;
+    const identityKey = normalizeIdentity(row?.session_id, row?.user_id);
+    if (!identityKey) continue;
+    if (!metricsBySession[identityKey]) metricsBySession[identityKey] = defaultEditMetrics();
+
+    if (!sessionMetaById[identityKey]) {
+      sessionMetaById[identityKey] = {
+        id: String(row?.session_id || identityKey),
+        label: '',
+        created_at: row.overridden_at || null,
+        group_id: row.session_group || 'unassigned',
+        group_type: '',
+        user_id: row.user_id || '',
+      };
+    }
+
+    const m = metricsBySession[identityKey];
+    const segmentNumber = Number(row.pause_and_reflect_number ?? null);
+    if (!Number.isFinite(segmentNumber) || segmentNumber <= 0) continue;
+
+    if (segmentNumber > m.max_pause_and_reflect_number) {
+      m.max_pause_and_reflect_number = segmentNumber;
+    }
+
+    const bucketKey = segmentNumber <= 4 ? String(segmentNumber) : '4+';
+    if (!m.par_metrics[bucketKey]) {
+      m.par_metrics[bucketKey] = { minor: 0, major: 0, words: 0 };
+    }
+
+    const isMinor = row.is_minor_change === true;
+    const isMajor = row.is_major_change === true || (!isMinor);
+    const words = Math.max(0, Number(row.words_edited) || 0);
+
+    if (isMinor) m.par_metrics[bucketKey].minor += 1;
+    if (isMajor) m.par_metrics[bucketKey].major += 1;
+    m.par_metrics[bucketKey].words += words;
+
+    m.manual_override_count += 1;
+  }
+
+  const sessionIds = new Set([
+    ...Object.keys(sessionMetaById),
+    ...Object.keys(metricsBySession),
+  ]);
+
+  const normalizedSessions = [...sessionIds].map(identityKey => {
+    const meta = sessionMetaById[identityKey] || {
+      id: identityKey,
+      label: '',
+      created_at: null,
+      group_id: 'unassigned',
+      group_type: '',
+      user_id: '',
+    };
+    const editCountKey = String(meta.id || '').trim();
+    return {
+      ...meta,
+      edit_count: editCountKey ? (editsBySession[editCountKey] || 0) : 0,
+      ...(metricsBySession[identityKey] || defaultEditMetrics()),
+    };
+  });
+
+  normalizedSessions.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+  return { sessions: normalizedSessions, editsBySession, metricsBySession };
 }
 
 // ═══════════════════════════════════════════════════════════════
 // USER ACTION LOGGER
 // ═══════════════════════════════════════════════════════════════
-async function logEvent(sessionId, eventName, eventData = {}) {
+async function logEvent(sessionId, sessionGroup, eventName, eventData = {}, userId = null) {
   try {
+    const normalizedEventData = {
+      ...(eventData || {}),
+      session_id: sessionId ?? null,
+      user_id: userId ?? eventData?.user_id ?? null,
+    };
     return await sbRequest('logs', 'POST', {
       session_id: sessionId ?? null,
+      session_group: sessionGroup ?? null,
       event_name: eventName,
-      event_data: eventData,
+      event_data: normalizedEventData,
       time_stamp: new Date().toISOString(),
     });
   } catch (e) {
@@ -557,22 +1081,28 @@ function TimelineChart({ history, visibleLabels }) {
 
     const tickvals = [];
     const ticktext = [];
-    if (timesMs.length <= 10) {
-      for (let i = 0; i < timesMs.length; i++) {
-        tickvals.push(timesMs[i]);
-        ticktext.push(fmtAxisTime(timesMs[i]));
-      }
-    } else {
-      const step = Math.ceil(timesMs.length / 8);
-      for (let i = 0; i < timesMs.length; i += step) {
-        tickvals.push(timesMs[i]);
-        ticktext.push(fmtAxisTime(timesMs[i]));
-      }
-      if ((timesMs.length - 1) % step !== 0) {
-        tickvals.push(timesMs[timesMs.length - 1]);
-        ticktext.push(fmtAxisTime(timesMs[timesMs.length - 1]));
+    const startMs = timesMs[0];
+    const endMs = timesMs[timesMs.length - 1];
+    const spanMs = Math.max(1, endMs - startMs);
+    const targetTicks = 8;
+    const roughStep = spanMs / Math.max(1, targetTicks - 1);
+    const stepCandidates = [
+      1000, 2000, 5000, 10000, 15000, 30000,
+      60000, 120000, 300000, 600000, 900000, 1800000,
+      3600000, 7200000, 21600000, 43200000, 86400000,
+    ];
+    let tickStep = stepCandidates[stepCandidates.length - 1];
+    for (const candidate of stepCandidates) {
+      if (candidate >= roughStep) {
+        tickStep = candidate;
+        break;
       }
     }
+
+    tickvals.push(startMs);
+    for (let t = startMs + tickStep; t < endMs; t += tickStep) tickvals.push(t);
+    if (endMs !== startMs) tickvals.push(endMs);
+    for (const tv of tickvals) ticktext.push(fmtAxisTime(tv));
 
     const mode = df.length < 2 ? 'markers' : 'lines+markers';
     const segmentOrder = [...new Set(df.map(r => (Number.isFinite(r.segment_id) ? r.segment_id : 1)))];
@@ -606,7 +1136,7 @@ function TimelineChart({ history, visibleLabels }) {
         }
         return perSegment;
       });
-    const xAxisRange = timesMs.length > 1 ? [timesMs[0] - 100, timesMs[timesMs.length - 1] +1000] : undefined;
+    const xAxisRange = timesMs.length > 1 ? [startMs, endMs] : [startMs - 1000, startMs + 1000];
     Plotly.react(divRef.current, traces, {
       margin: { l:122,r:10,t:10,b:70 }, height:420,
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
@@ -646,12 +1176,12 @@ function TimelineChart({ history, visibleLabels }) {
         tickfont:{size:12,color:'#ccc'},
         title:{text:'Intensity Level',font:{size:13,color:'#ccc'},standoff:24},
       },
-      legend: { orientation:'h', yanchor:'bottom', y:1.12, xanchor:'center', x:0.5, font:{size:11,color:'#ccc'}, itemclick:'toggleothers', itemdoubleclick:'toggle' },
+      legend: { orientation:'h', yanchor:'bottom', y:1.12, xanchor:'center', x:0.5, font:{size:11,color:'#ccc'}, itemclick:false, itemdoubleclick:false },
       font: { size:11, color:'#ccc' },
       hovermode: 'x unified',
       hoverlabel: { bgcolor:'rgba(20,20,30,0.95)', bordercolor:'#444', font:{color:'#fff'} },
       dragmode: false,
-    }, { displayModeBar:false, responsive:true, scrollZoom:false, doubleClick:false });
+    }, PLOTLY_STATIC_CONFIG);
   }, [history, visibleLabels]);
 
   if (!history.length) {
@@ -702,9 +1232,9 @@ function OverallSplitChart({ history }) {
       xaxis: { title:{ text: 'Emotions', font:{size:11,color:'#aaa'} }, tickfont:{color:'#ccc'} },
       yaxis: { fixedrange:true, range:[0,100], ticksuffix:'%', showline:true, linecolor:'#666', linewidth:2, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', automargin:true, title:{text:'Percentage of Time (%)',font:{size:12,color:'#ccc'},standoff:20} },
       font:{size:11,color:'#ccc'},
-      legend:{ orientation:'h', yanchor:'bottom', y:1.08, xanchor:'center', x:0.5, font:{size:10,color:'#ccc'} },
+      legend:{ orientation:'h', yanchor:'bottom', y:1.08, xanchor:'center', x:0.5, font:{size:10,color:'#ccc'}, itemclick:false, itemdoubleclick:false },
       dragmode:false,
-    }, { displayModeBar:false, responsive:true, scrollZoom:false, doubleClick:false });
+    }, PLOTLY_STATIC_CONFIG);
   }, [history]);
   if (!history.length) return React.createElement('div', { className:'chart-placeholder' }, '📊 Overall split will appear after predictions');
   return React.createElement('div', { ref:divRef, style:{width:'100%'} });
@@ -804,21 +1334,31 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
 // ═══════════════════════════════════════════════════════════════
 // BAR EDIT PANEL — shown on bar click
 // ═══════════════════════════════════════════════════════════════
-function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, onRestore, onClose, sessionId }) {
-  // initialValues: array of 4 numbers summing to 100
-  const [vals, setVals] = useState([...initialValues]);
+function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, currentValues, onSave, onClose, sessionId, sessionGroup, pauseAndReflectNumber, requireTextJustification, userId }) {
+  // initialValues: array of 4 numbers summing to 100 (original AI prediction)
+  const getStartValues = () => {
+    if (Array.isArray(currentValues) && currentValues.length === 4) return [...currentValues];
+    return [...initialValues];
+  };
+  const [vals, setVals] = useState(getStartValues);
   const [justificationText, setJustificationText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [restoring, setRestoring] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+
+  useEffect(() => {
+    setVals(getStartValues());
+    setJustificationText('');
+    setSaveMsg('');
+  }, [bucketKey, label, currentValues, initialValues]);
 
   const sum = vals.reduce((s, v) => s + v, 0);
   const sumOk = Math.abs(sum - 100) <= 1; // allow 1% rounding tolerance
-  const maxChange = Math.max(...vals.map((v, i) => Math.abs(v - (initialValues[i] ?? 0))));
-  const hasChanged = maxChange > 0;
-  const minRequiredWords = maxChange > 20 ? 10 : 5;
+  const startValues = getStartValues();
+  const maxChangeFromStart = Math.max(...vals.map((v, i) => Math.abs(v - (startValues[i] ?? 0))));
+  const hasChanged = maxChangeFromStart > 0;
+  const minRequiredWords = maxChangeFromStart > 20 ? 10 : 5;
   const enteredWords = justificationText.trim() ? justificationText.trim().split(/\s+/).length : 0;
-  const textRequirementMet = !ENABLE_EDIT_TEXT_REQUIREMENT || !hasChanged || enteredWords >= minRequiredWords;
+  const textRequirementMet = !requireTextJustification || !hasChanged || enteredWords >= minRequiredWords;
 
   // When a slider changes: adjust the last "free" other slider to keep sum = 100
   function handleChange(idx, newVal) {
@@ -861,41 +1401,39 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
   async function handleSave() {
     setSaving(true);
     setSaveMsg('');
-    if (ENABLE_EDIT_TEXT_REQUIREMENT && hasChanged && enteredWords < minRequiredWords) {
+    if (requireTextJustification && hasChanged && enteredWords < minRequiredWords) {
       setSaveMsg(`⚠ Please enter at least ${minRequiredWords} words explaining your edit.`);
       setSaving(false);
       return;
     }
     try {
-      await saveManualOverride(sessionId, bucketKey, label, vals);
-      await logEvent(sessionId, 'changes_made', {
+      await saveManualOverride(
+        sessionId,
+        sessionGroup,
+        bucketKey,
+        label,
+        vals,
+        initialValues,
+        pauseAndReflectNumber,
+        justificationText,
+        userId,
+      );
+      await logEvent(sessionId, sessionGroup, 'changes_made', {
         label,
         bucket_key: bucketKey,
         new_values: vals,
         justification: justificationText,
-      });
-      setSaveMsg('✓ Saved to Supabase');
-      setTimeout(() => { setSaveMsg(''); onSave(vals); }, 1000);
+      }, userId);
+      setSaveMsg('');
+      onSave(vals);
     } catch (err) {
-      setSaveMsg('⚠ ' + String(err).slice(0, 80));
+      setSaveMsg('⚠ ' + String(err));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleRestore() {
-    setRestoring(true);
-    setSaveMsg('');
-    try {
-      await clearManualOverride(sessionId, bucketKey, label);
-      setSaveMsg('↺ Restored original prediction');
-      setTimeout(() => { setSaveMsg(''); onRestore(); }, 500);
-    } catch (err) {
-      setSaveMsg('⚠ ' + String(err).slice(0, 80));
-    } finally {
-      setRestoring(false);
-    }
-  }
+
 
   const e = React.createElement;
   return e('div', { className:'bar-edit-overlay' },
@@ -903,17 +1441,35 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
       `✏️ Edit · ${label} · ${bucketLabel}`,
       e('button', { onClick: onClose, title:'Close' }, '✕')
     ),
+    e('div', { className:'edit-level-row', style:{ marginBottom:'0.6rem', paddingBottom:'0.4rem', borderBottom:'1px solid #2d3350' } },
+      e('div', { style:{ width:'16px' } }),
+      e('span', { style:{ width:'48px' } }),
+      e('div', { style:{ flex:1 } }),
+      e('span', { style:{ width:'36px', textAlign:'right', fontFamily:'var(--mono)', fontSize:'0.68rem', color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.04em', opacity:0.6 } }, 'AI'),
+      e('span', { style:{ width:'36px', textAlign:'right', fontFamily:'var(--mono)', fontSize:'0.68rem', color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.04em' } }, 'You'),
+    ),
     LEVEL_LABELS.map((lvl, i) =>
       e('div', { key:lvl, className:'edit-level-row' },
         e('div', { className:'edit-level-dot', style:{ background: LEVEL_COLORS[i] } }),
         e('span', { className:'edit-level-name' }, lvl),
-        e('input', {
-          type:'range', min:0, max:100, step:1,
-          className:'edit-level-slider',
-          value: vals[i],
-          style: { '--thumb-color': LEVEL_COLORS[i] },
-          onChange: ev => handleChange(i, parseInt(ev.target.value, 10)),
-        }),
+        e('div', { className:'edit-level-slider-container' },
+          e('div', { className:'edit-level-slider-stack' },
+            e('input', {
+              type:'range', min:0, max:100, step:1,
+              className:'edit-level-slider-ai',
+              value: initialValues[i],
+              disabled: true,
+            }),
+            e('input', {
+              type:'range', min:0, max:100, step:1,
+              className:'edit-level-slider-edit',
+              value: vals[i],
+              style: { '--thumb-color': LEVEL_COLORS[i] },
+              onChange: ev => handleChange(i, parseInt(ev.target.value, 10)),
+            }),
+          ),
+        ),
+        e('span', { className:'edit-level-val-orig' }, `${initialValues[i]}%`),
         e('span', { className:'edit-level-val' }, `${vals[i]}%`),
       )
     ),
@@ -921,7 +1477,7 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
       e('span', { style:{color:'var(--muted)'} }, 'Sum'),
       e('span', { className:`edit-sum-val${sumOk ? '' : ' bad'}` }, `${sum}% ${sumOk ? '✓' : '— must be 100%'}`),
     ),
-    ENABLE_EDIT_TEXT_REQUIREMENT ? e('div', { style:{ marginTop:'0.55rem' } },
+    requireTextJustification ? e('div', { style:{ marginTop:'0.55rem' } },
       e('div', {
         style:{
           fontFamily:'var(--mono)',
@@ -957,13 +1513,8 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
     e('div', { className:'edit-actions' },
       e('button', { className:'btn-cancel', onClick:onClose }, 'Cancel'),
       e('button', {
-        className:'btn-ghost',
-        disabled: restoring,
-        onClick: handleRestore,
-      }, restoring ? 'Restoring…' : 'Restore'),
-      e('button', {
         className:'btn-save',
-        disabled: !hasChanged || !sumOk || saving || restoring || !textRequirementMet,
+        disabled: !hasChanged || !sumOk || saving || !textRequirementMet,
         onClick: handleSave,
       }, saving ? 'Saving…' : 'Save'),
     ),
@@ -974,7 +1525,7 @@ function BarEditPanel({ label, bucketLabel, bucketKey, initialValues, onSave, on
 // ═══════════════════════════════════════════════════════════════
 // LabelSplitCharts — with bar click → edit overlay
 // ═══════════════════════════════════════════════════════════════
-function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editableSegmentId }) {
+function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOverrides, editableSegmentId, pauseAndReflectNumber, canEdit, requireTextJustification, userId }) {
   const chartRefs    = useRef([]);
   // editState: { labelIdx, bucketIdx, bucketLabel, initialValues }
   const [editState, setEditState] = useState(null);
@@ -1009,6 +1560,14 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
       cursor += w;
     }
 
+    let lastRealIdx = -1;
+    for (let i = labels.length - 1; i >= 0; i--) {
+      if (labels[i].trim()) {
+        lastRealIdx = i;
+        break;
+      }
+    }
+
     const tickvals = xPositions;
     const ticktext = labels.map(l => l.trim() ? l : '');
     const lockAnnotations = labels
@@ -1028,6 +1587,36 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
       })
       .filter(Boolean);
 
+    const lastBarAnnotations = [];
+    const lastBarShapes = [];
+    if (lastRealIdx >= 0) {
+      const lastCenter = xPositions[lastRealIdx];
+      const lastWidth = normalizedWidths[lastRealIdx] * 0.92;
+      const lastStart = lastCenter - (lastWidth / 2);
+      const lastEnd = lastCenter + (lastWidth / 2);
+      lastBarShapes.push({
+        type: 'rect',
+        xref: 'x',
+        yref: 'paper',
+        x0: lastStart,
+        x1: lastEnd,
+        y0: 0,
+        y1: 1,
+        line: { color: '#f8fafc', width: 1.8 },
+        fillcolor: 'rgba(248,250,252,0.06)',
+        layer: 'above',
+      });
+      lastBarAnnotations.push({
+        x: lastCenter,
+        y: 102,
+        xref: 'x',
+        yref: 'y',
+        text: 'Latest',
+        showarrow: false,
+        font: { size: 10, color: '#f8fafc' },
+      });
+    }
+
     const traces = LEVEL_LABELS.map((lvl, li) => ({
       x: xPositions,
       y: labels.map((lbl, bi) => (lbl.trim() ? percentagesPerLevel[li][bi] : null)),
@@ -1036,6 +1625,16 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
       name: lvl, type: 'bar',
       marker: {
         color: LEVEL_COLORS[li],
+        line: {
+          color: labels.map((lbl, bi) => {
+            if (!lbl.trim()) return 'rgba(0,0,0,0)';
+            return bi === lastRealIdx ? '#f8fafc' : 'rgba(15,23,42,0.45)';
+          }),
+          width: labels.map((lbl, bi) => {
+            if (!lbl.trim()) return 0;
+            return bi === lastRealIdx ? 1.8 : 0.4;
+          }),
+        },
         opacity: labels.map((lbl, bi) => {
           if (!lbl.trim()) return 0;
           return editableMask?.[bi] ? 1 : 0.35;
@@ -1062,48 +1661,38 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
       },
       yaxis:{ fixedrange:true, range:[0,100], ticksuffix:'%', showline:true, linecolor:'#666', linewidth:2, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', automargin:true, title:{text:'Percentage of Time (%)',font:{size:11,color:'#ccc'},standoff:16} },
       font:{size:11, color:'#ccc'},
-      annotations: lockAnnotations,
+      annotations: [...lockAnnotations, ...lastBarAnnotations],
+      shapes: lastBarShapes,
       dragmode:false,
-    }, { displayModeBar:false, responsive:true, scrollZoom:false, doubleClick:false });
+    }, PLOTLY_EDIT_CONFIG);
 
     // Attach click handler (remove previous first to avoid stacking on re-renders)
     div.removeAllListeners('plotly_click');
     div.on('plotly_click', (data) => {
-      if (!ENABLE_GRAPH_SLIDER_EDIT) return;
+      if (!canEdit) return;
       const pt = data.points?.[0];
       if (!pt) return;
       const bucketIdx   = pt.pointIndex;
-      const chartData2  = getChartData(label);
+      const baseChartData = bucketLevelPercentages(history, label, 5, editableSegmentId);
+      const chartData2 = getChartData(label);
       const bucketLabel = chartData2.labels[bucketIdx];
       if (!chartData2.editableMask[bucketIdx]) return;
       const bucketKey = chartData2.bucketKeys[bucketIdx];
-      const initialValues = LEVEL_LABELS.map((_, li) => chartData2.percentagesPerLevel[li][bucketIdx] ?? 0);
-      setEditState({ labelIdx: idx, label, bucketIdx, bucketLabel, bucketKey, initialValues });
+      const initialValues = LEVEL_LABELS.map((_, li) => baseChartData.percentagesPerLevel?.[li]?.[bucketIdx] ?? 0);
+      const currentValues = LEVEL_LABELS.map((_, li) => chartData2.percentagesPerLevel?.[li]?.[bucketIdx] ?? 0);
+      setEditState({ labelIdx: idx, label, bucketIdx, bucketLabel, bucketKey, initialValues, currentValues });
     });
   }
 
   useEffect(() => {
     LABEL_COLS.forEach((label, idx) => renderChart(label, idx, getChartData(label)));
-  }, [history, overrides, editableSegmentId]);
+  }, [history, overrides, editableSegmentId, canEdit]);
 
   function handleSave(newVals) {
     if (!editState) return;
     const { label, bucketKey } = editState;
     const key = `${label}:${bucketKey}`;
     setOverrides(prev => ({ ...prev, [key]: newVals }));
-    setEditState(null);
-  }
-
-  function handleRestore() {
-    if (!editState) return;
-    const { label, bucketKey } = editState;
-    const key = `${label}:${bucketKey}`;
-    setOverrides(prev => {
-      if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
     setEditState(null);
   }
 
@@ -1118,16 +1707,16 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
           e('div', { className:'panel', style:{padding:'0.6rem'} },
             e('div', { className:'panel-header' }, `${label} split`),
             e('div', { style:{fontSize:'0.72rem', color:'#9ba3c4', marginTop:'0.15rem', padding:'0 0.1rem'} }, '5 Min Windows'),
-            ENABLE_GRAPH_SLIDER_EDIT
+            canEdit
               ? e('div', { className:'chart-click-hint' }, '💡 Click a bar to contest AI predictions you disagree with')
-              : e('div', { className:'chart-click-hint' }, '🔒 Slider editing is disabled by config flag'),
+              : e('div', { className:'chart-click-hint' }, '🔒 Editing disabled for your assigned session group'),
             e('div', {
               ref: el => chartRefs.current[idx] = el,
               style:{
                 width:'100%',
                 minHeight:'160px',
                 marginTop:'0.5rem',
-                cursor: ENABLE_GRAPH_SLIDER_EDIT ? 'pointer' : 'default',
+                cursor: canEdit ? 'pointer' : 'default',
               },
             }),
           ),
@@ -1140,9 +1729,13 @@ function LabelSplitCharts({ history, sessionId, overrides, setOverrides, editabl
               bucketLabel: editState.bucketLabel,
               bucketKey: editState.bucketKey,
               initialValues: editState.initialValues,
+              currentValues: editState.currentValues,
               sessionId,
+              sessionGroup,
+              pauseAndReflectNumber,
+              requireTextJustification,
+              userId,
               onSave: handleSave,
-              onRestore: handleRestore,
               onClose: () => setEditState(null),
             })
           ) : null,
@@ -1160,7 +1753,20 @@ function App() {
   const [running,      setRunning]      = useState(false);
   const [paused,       setPaused]       = useState(false);
   const [userId,       setUserId]       = useState('');
-  const [showNameScreen, setShowNameScreen] = useState(true);
+  const [groupPasswordInput, setGroupPasswordInput] = useState('');
+  const [authError,    setAuthError]    = useState('');
+  const [authReady,    setAuthReady]    = useState(false);
+  const [isAdminMode,  setIsAdminMode]  = useState(false);
+  const [sessionGroups, setSessionGroups] = useState([]);
+  const [activeGroup,  setActiveGroup]  = useState(null);
+  const [newSessionGroupId, setNewSessionGroupId] = useState('');
+  const [newGroupType, setNewGroupType] = useState(SESSION_GROUP_TYPES.WITHOUT_EDIT);
+  const [newGroupNote, setNewGroupNote] = useState('');
+  const [adminInfoMsg, setAdminInfoMsg] = useState('');
+  const [adminError,   setAdminError]   = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminSessions, setAdminSessions] = useState([]);
+  const [selectedAdminGroupId, setSelectedAdminGroupId] = useState(null);
   const [history,      setHistory]      = useState([]);
   const [currentPreds, setCurrentPreds] = useState(null);
   const [frameCount,   setFrameCount]   = useState(0);
@@ -1191,13 +1797,72 @@ function App() {
   const activeRunStartedAtRef = useRef(null);
   const activeSegmentRef = useRef(1);
   const segmentStartedAtWallClockRef = useRef(Date.now());
+  const editPolicy = getEditPolicyByType(activeGroup?.type || SESSION_GROUP_TYPES.WITHOUT_EDIT);
+
+  const refreshAdminOverview = useCallback(async () => {
+    setAdminLoading(true);
+    setAdminError('');
+    try {
+      const snapshot = await fetchAdminSessionOverview();
+      setAdminSessions(snapshot.sessions || []);
+    } catch (e) {
+      setAdminError('Could not load admin session analytics: ' + String(e));
+      setAdminSessions([]);
+    } finally {
+      setAdminLoading(false);
+    }
+  }, []);
+
+  const refreshSessionGroups = useCallback(async () => {
+    try {
+      const rows = await fetchLoginCredentials();
+      setSessionGroups(rows);
+    } catch (e) {
+      setSessionGroups([]);
+      setAdminError('Could not load login credentials: ' + String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSessionGroups();
+  }, [refreshSessionGroups]);
+
+  useEffect(() => {
+    if (isAdminMode) {
+      refreshAdminOverview();
+      refreshSessionGroups();
+    }
+  }, [isAdminMode, refreshAdminOverview, refreshSessionGroups]);
 
   useEffect(() => {
     const missing = [];
-    if (!SUPABASE_URL) missing.push('SUPABASE_URL');
-    if (!SUPABASE_KEY) missing.push('SUPABASE_KEY');
-    if (!HF_TOKEN)     missing.push('HF_TOKEN');
+    if (!SUPABASE_URL)     missing.push('SUPABASE_URL');
+    if (!SUPABASE_KEY)     missing.push('SUPABASE_KEY');
+    if (!API_BASE_URL)     missing.push('HF_SPACE_URL');
     if (missing.length) setConfigWarn(`Not configured: ${missing.join(', ')} — edit the CONFIG block`);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!API_BASE_URL) return;
+      try {
+        const zeroFeatures = {};
+        for (const k of FEATURE_ORDER) zeroFeatures[k] = 0;
+        const result = await classifyWindow(zeroFeatures);
+        if (!cancelled) {
+          if (result) {
+            setCurrentPreds(result);
+            setLastError(null);
+          } else {
+            setLastError('HF Space API returned no prediction during the startup check.');
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setLastError('[HF Space] startup check failed: ' + String(e));
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -1223,6 +1888,80 @@ function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const handleCreateSessionGroup = useCallback(async () => {
+    const requestedId = (newSessionGroupId || '').trim();
+    if (!requestedId) {
+      setAdminError('Session group is required.');
+      return;
+    }
+    if (sessionGroups.some(g => String(g.id).toLowerCase() === requestedId.toLowerCase())) {
+      setAdminError('Session group already exists. Please use a unique value.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const group = {
+      id: requestedId,
+      type: newGroupType,
+      password: generateSessionGroupPassword(),
+      description: (newGroupNote || '').trim(),
+      created_at: now,
+    };
+    try {
+      setAdminError('');
+      await createLoginCredential(group);
+      await refreshSessionGroups();
+      setNewSessionGroupId('');
+      setNewGroupNote('');
+    } catch (e) {
+      setAdminError('Failed to create login credential: ' + String(e));
+    }
+  }, [newSessionGroupId, newGroupType, newGroupNote, refreshSessionGroups, sessionGroups]);
+
+  const handleEnterWithPassword = useCallback(async () => {
+    const uid = (userId || '').trim();
+    const enteredPassword = (groupPasswordInput || '').trim();
+    if (!uid) {
+      setAuthError('User ID is required.');
+      return;
+    }
+    if (!/^\d+$/.test(uid)) {
+      setAuthError('User ID must contain numbers only.');
+      return;
+    }
+    if (!enteredPassword) {
+      setAuthError('Session group password is required.');
+      return;
+    }
+    if (uid === ADMIN_USER_ID && enteredPassword === ADMIN_PASSWORD) {
+      setAuthError('');
+      setAuthReady(false);
+      setIsAdminMode(true);
+      setActiveGroup(null);
+      setSessionId(null);
+      sessionRef.current = null;
+      await Promise.all([refreshAdminOverview(), refreshSessionGroups()]);
+      return;
+    }
+    const group = sessionGroups.find(g => (g.password || '').trim() === enteredPassword);
+    if (!group) {
+      setAuthError('Invalid password. Access denied.');
+      return;
+    }
+    try {
+      const newSessionId = await createSession(uid, group.id, uid, group.type || '');
+      setSessionId(newSessionId);
+      sessionRef.current = newSessionId;
+      await logEvent(newSessionId, group.id, 'session_login_success', { user_id: uid }, uid);
+    } catch (e) {
+      setAuthError('Login succeeded but session row creation failed: ' + String(e));
+      return;
+    }
+    setActiveGroup(group);
+    setIsAdminMode(false);
+    setAuthError('');
+    setAuthReady(true);
+  }, [userId, groupPasswordInput, sessionGroups, refreshAdminOverview, refreshSessionGroups]);
 
   const processFrame = useCallback(async () => {
     if (!runningRef.current) return;
@@ -1262,7 +2001,7 @@ function App() {
       if (!agg) { rafRef.current = requestAnimationFrame(processFrame); return; }
       let prediction = null;
       try { prediction = await classifyWindow(agg); }
-      catch(e) { setLastError('[HF] ' + String(e)); }
+      catch(e) { setLastError('[HF Space] ' + String(e)); }
       if (prediction) {
         setCurrentPreds(prediction);
         setWindowCount(c => c + 1);
@@ -1274,10 +2013,11 @@ function App() {
         );
         const row = { predicted_at: ts, active_elapsed_ms: activeElapsedMs };
         row.segment_id = activeSegmentRef.current;
+        row.pause_and_reflect_number = activeSegmentRef.current;
         row.segment_start_ts = segmentStartedAtWallClockRef.current;
         for (const lbl of LABEL_COLS) if (prediction[lbl] !== undefined) row[lbl] = prediction[lbl].label;
         setHistory(h => [...h.slice(-179), row]);
-        insertPrediction(sessionRef.current, prediction, agg)
+        insertPrediction(sessionRef.current, userId, prediction, agg, activeSegmentRef.current)
           .catch(e => setLastError('[supabase] insertPrediction: ' + String(e)));
       }
     }
@@ -1302,18 +2042,18 @@ function App() {
     await videoRef.current.play();
     setCameraReady(true);
     if (canvasRef.current) drawUtils.current = new DrawingUtils(canvasRef.current.getContext('2d'));
-    let newSessionId = null;
-    try {
-      const label = userId ? `${userId}${contentUrl ? ' - ' + contentUrl.slice(0,80) : ''}` : (contentUrl.slice(0,80) || 'unlabelled');
-      newSessionId = await createSession(label, { url: contentUrl });
-      await logEvent(newSessionId, 'session_open', { id: newSessionId });
-    } catch(e) { setLastError('[supabase] createSession: ' + String(e)); }
-    setSessionId(newSessionId); sessionRef.current = newSessionId;
-    await logEvent(newSessionId, 'session_started', {});
+    if (!sessionRef.current) {
+      setLastError('No authenticated session found. Please log in again.');
+      return;
+    }
+    await logEvent(sessionRef.current, activeGroup?.id || null, 'session_started', {
+      user_id: userId || '',
+      url: contentUrl,
+    }, userId);
     runningRef.current = true; pausedRef.current = false;
     setRunning(true); setPaused(false);
     rafRef.current = requestAnimationFrame(processFrame);
-  }, [modelReady, contentUrl, processFrame, userId]);
+  }, [modelReady, contentUrl, processFrame, userId, activeGroup]);
 
   const handlePauseToggle = useCallback(() => {
     if (!running) return;
@@ -1324,7 +2064,7 @@ function App() {
       pausedRef.current = false; setPaused(false);
       runningRef.current = true;
       rafRef.current = requestAnimationFrame(processFrame);
-      logEvent(sessionRef.current, 'session_resumed', {}).catch(() => {});
+      logEvent(sessionRef.current, activeGroup?.id || null, 'session_resumed', {}, userId).catch(() => {});
       return;
     }
     activeElapsedBeforePauseRef.current += Math.max(
@@ -1335,11 +2075,13 @@ function App() {
     pausedRef.current = true; setPaused(true);
     runningRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    logEvent(sessionRef.current, 'session_paused', {}).catch(() => {});
-  }, [running, paused, processFrame]);
+    logEvent(sessionRef.current, activeGroup?.id || null, 'session_paused', {}, userId).catch(() => {});
+  }, [running, paused, processFrame, activeGroup]);
 
   const handleStop = useCallback(() => {
-    logEvent(sessionRef.current, 'session_stopped', {}).catch(() => {});
+    if (sessionRef.current) {
+      logEvent(sessionRef.current, activeGroup?.id || null, 'session_stopped', {}, userId).catch(() => {});
+    }
     runningRef.current = false; pausedRef.current = false;
     activeElapsedBeforePauseRef.current = 0;
     activeRunStartedAtRef.current = null;
@@ -1351,7 +2093,24 @@ function App() {
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraReady(false); setNoFace(false);
-  }, []);
+  }, [activeGroup]);
+
+  const handleLeaveToGateway = useCallback(() => {
+    handleStop();
+    setAuthReady(false);
+    setIsAdminMode(false);
+    setSelectedAdminGroupId(null);
+    setUserId('');
+    setGroupPasswordInput('');
+    setAuthError('');
+    setSessionId(null);
+    sessionRef.current = null;
+    setActiveGroup(null);
+  }, [handleStop]);
+
+  const handleRefreshAdminData = useCallback(async () => {
+    await Promise.all([refreshAdminOverview(), refreshSessionGroups()]);
+  }, [refreshAdminOverview, refreshSessionGroups]);
 
   useEffect(() => () => handleStop(), []);
 
@@ -1369,6 +2128,7 @@ function App() {
         predicted_at: new Date().toISOString(),
         active_elapsed_ms: lastActiveElapsedMs + WINDOW_SECONDS * 1000,
         segment_id: activeSegmentRef.current,
+        pause_and_reflect_number: activeSegmentRef.current,
         segment_start_ts: segmentStartedAtWallClockRef.current,
       };
       for (const lbl of LABEL_COLS) row[lbl] = dummy[lbl].label;
@@ -1383,7 +2143,7 @@ function App() {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await getManualOverrides(sessionId);
+        const rows = await getManualOverrides(sessionId, activeGroup?.id || null);
         if (cancelled || !Array.isArray(rows)) return;
         const next = {};
         for (const row of rows) {
@@ -1399,26 +2159,258 @@ function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [sessionId, activeGroup]);
 
   const e = React.createElement;
 
-  if (showNameScreen) {
-    return e('div', { className:'name-modal' },
-      e('div', { className:'name-card' },
-        e('h2', null, 'Welcome — enter your ID to begin'),
+  if (isAdminMode) {
+    const MAX_PAUSE_REFLECT_INDEX = 4;
+    const buildPauseReflectBuckets = (maxIndex) => {
+      const safeMax = Math.max(0, Number(maxIndex) || 0);
+      const buckets = [];
+      for (let i = 1; i <= Math.min(MAX_PAUSE_REFLECT_INDEX, safeMax); i++) buckets.push(String(i));
+      if (safeMax > MAX_PAUSE_REFLECT_INDEX) buckets.push(`${MAX_PAUSE_REFLECT_INDEX}+`);
+      return buckets;
+    };
+
+    const stickyCol = (leftPx, widthPx, header = false) => ({
+      left: `${leftPx}px`,
+      minWidth: `${widthPx}px`,
+      width: `${widthPx}px`,
+      maxWidth: `${widthPx}px`,
+      zIndex: header ? 10 : 5,
+    });
+
+    const getBucketMetric = (metrics, bucketKey) => {
+      const row = metrics?.[bucketKey];
+      if (!row) return { minor: 0, major: 0, words: 0 };
+      return {
+        minor: Number(row.minor) || 0,
+        major: Number(row.major) || 0,
+        words: Number(row.words) || 0,
+      };
+    };
+
+    const renderReflectionMetricHeader = (prefix, bucket, metricKey, metricLabel) => (
+      e('th', { key:`${prefix}-${bucket}-${metricKey}` }, `Reflection-${bucket} ${metricLabel}`)
+    );
+
+    const groupsById = {};
+    const sessionGroupTypeById = {};
+    for (const g of sessionGroups) {
+      sessionGroupTypeById[g.id] = g.type;
+      groupsById[g.id] = {
+        id: g.id,
+        type: g.type,
+        description: g.description || '',
+        sessions: 0,
+        edits: 0,
+        max_pause_and_reflect_number: 0,
+        par_metrics: {},
+        created_at: g.created_at,
+        password: g.password,
+      };
+    }
+    for (const row of adminSessions) {
+      if (!groupsById[row.group_id]) continue;
+      const g = groupsById[row.group_id];
+      g.sessions += 1;
+      g.edits += row.edit_count || 0;
+      g.max_pause_and_reflect_number = Math.max(
+        g.max_pause_and_reflect_number,
+        Number(row.max_pause_and_reflect_number) || 0,
+      );
+
+      const rowMetrics = row.par_metrics || {};
+      for (const key of Object.keys(rowMetrics)) {
+        if (!g.par_metrics[key]) g.par_metrics[key] = { minor: 0, major: 0, words: 0 };
+        g.par_metrics[key].minor += Number(rowMetrics[key]?.minor) || 0;
+        g.par_metrics[key].major += Number(rowMetrics[key]?.major) || 0;
+        g.par_metrics[key].words += Number(rowMetrics[key]?.words) || 0;
+      }
+    }
+    const groupStats = Object.values(groupsById).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const selectedGroupExists = selectedAdminGroupId && groupStats.some(g => g.id === selectedAdminGroupId);
+    const selectedGroupId = selectedGroupExists ? selectedAdminGroupId : null;
+    const sessionsToShow = selectedGroupId
+      ? adminSessions.filter(row => row.group_id === selectedGroupId)
+      : [];
+
+    const groupMaxPauseReflect = groupStats.reduce((mx, g) => Math.max(mx, Number(g.max_pause_and_reflect_number) || 0), 0);
+    const selectedGroupMaxPauseReflect = selectedGroupId
+      ? Math.max(
+        Number(groupStats.find(g => g.id === selectedGroupId)?.max_pause_and_reflect_number) || 0,
+        sessionsToShow.reduce((mx, s) => Math.max(mx, Number(s.max_pause_and_reflect_number) || 0), 0),
+      )
+      : 0;
+    const groupBuckets = buildPauseReflectBuckets(groupMaxPauseReflect);
+    const sessionBuckets = buildPauseReflectBuckets(selectedGroupMaxPauseReflect);
+
+    return e('div', { className:'gateway-wrap' },
+      e('div', { className:'gateway-admin-shell' },
+        e('div', { className:'gateway-grid' },
+        e('div', { className:'gateway-card admin-controls-card' },
+          e('div', { className:'gateway-title' }, 'Admin Controls'),
+          e('div', { className:'gateway-sub' }, 'Create session groups and track session activity with edit counts.'),
+          e('label', { className:'field-label' }, 'Session Group'),
+          e('input', {
+            className:'url-input',
+            type:'text',
+            placeholder:'e.g., Date_BATCH_session-type',
+            value:newSessionGroupId,
+            onChange:ev=>setNewSessionGroupId(ev.target.value),
+          }),
+          e('label', { className:'field-label' }, 'Session Group Type'),
+          e('select', {
+            className:'url-input',
+            value:newGroupType,
+            onChange:ev=>setNewGroupType(ev.target.value),
+          },
+            Object.values(SESSION_GROUP_TYPES).map(type =>
+              e('option', { key:type, value:type }, SESSION_GROUP_TYPE_LABELS[type])
+            )
+          ),
+          e('label', { className:'field-label' }, 'Admin Note (optional)'),
+          e('input', {
+            className:'url-input',
+            type:'text',
+            placeholder:'e.g., Batch 3 morning session',
+            value:newGroupNote,
+            onChange:ev=>setNewGroupNote(ev.target.value),
+          }),
+          e('div', { className:'name-row' },
+            e('button', { className:'btn-primary', style:{flex:'1 1 100%'}, onClick:handleCreateSessionGroup, disabled:!(newSessionGroupId || '').trim() }, 'Create Group + Auto Password'),
+            e('button', { className:'btn-ghost', style:{flex:'1 1 48%'}, onClick:handleRefreshAdminData }, 'Refresh Data'),
+            e('button', { className:'btn-ghost', style:{flex:'1 1 48%'}, onClick:handleLeaveToGateway }, 'Back To Login'),
+          ),
+          adminInfoMsg ? e('div', { className:'banner warn', style:{marginTop:'0.5rem', marginBottom:0} }, adminInfoMsg) : null,
+          adminError ? e('div', { className:'banner error', style:{marginTop:'0.5rem', marginBottom:0} }, adminError) : null,
+        ),
+
+        e('div', { className:'gateway-card admin-groups-card' },
+          e('div', { className:'gateway-title' }, 'Admin Dashboard'),
+          e('div', { className:'summary-row' },
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Session Groups'), e('div', { className:'v' }, String(sessionGroups.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Tracked Sessions'), e('div', { className:'v' }, String(adminSessions.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Total Edits'), e('div', { className:'v' }, String(adminSessions.reduce((s, r) => s + (r.edit_count || 0), 0)))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Data State'), e('div', { className:'v' }, adminLoading ? 'Loading…' : 'Ready')),
+          ),
+
+          e('div', { className:'field-label', style:{marginTop:0} }, 'Session Groups'),
+          e('div', { className:'table-wrap wide admin-group-table-wrap' },
+            e('table', { className:'admin-table wide' },
+              e('thead', null,
+                e('tr', null,
+                  e('th', { className:'sticky-col', style:stickyCol(0, 190, true) }, 'Group ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(190, 120, true) }, 'Type'),
+                  e('th', null, 'Description'),
+                  e('th', null, 'Password'),
+                  e('th', null, 'Created'),
+                  e('th', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, 'Overall Edits'),
+                  e('th', null, 'Sessions'),
+                )
+              ),
+              e('tbody', null,
+                groupStats.length
+                  ? groupStats.map(g => e('tr', { key:g.id },
+                    e('td', { className:'sticky-col', style:stickyCol(0, 190) },
+                      e('button', {
+                        type:'button',
+                        className:`group-id-btn ${selectedGroupId === g.id ? 'active' : ''}`,
+                        onClick:() => setSelectedAdminGroupId(prev => prev === g.id ? null : g.id),
+                        title:selectedGroupId === g.id ? 'Click to clear filter' : 'Click to show only this group in Sessions table',
+                      }, g.id)
+                    ),
+                    e('td', { className:'sticky-col', style:stickyCol(190, 120) }, SESSION_GROUP_TYPE_LABELS[g.type] || g.type),
+                    e('td', null, g.description || '—'),
+                    e('td', null, e('span', { style:{fontFamily:'var(--mono)'} }, g.password || '—')),
+                    e('td', null, g.created_at ? formatSingaporeTime(g.created_at, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'),
+                    e('td', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, String(g.edits || 0)),
+                    e('td', null, String(g.sessions || 0)),
+                  ))
+                  : e('tr', null, e('td', { colSpan:7, style:{color:'var(--muted)'} }, 'No session groups yet.'))
+              )
+            )
+          )
+        )
+      ),
+      e('div', { className:'gateway-card dashboard-card' },
+        e('div', { className:'admin-session-section' },
+          e('div', { className:'field-label admin-sticky-heading' }, selectedGroupId ? `Sessions · ${selectedGroupId}` : 'Sessions (Select a Group ID Above)'),
+          e('div', { className:'table-wrap wide admin-session-table-wrap' },
+            e('table', { className:'admin-table wide admin-session-table' },
+              e('thead', null,
+                e('tr', null,
+                  e('th', { className:'sticky-col', style:stickyCol(0, 170, true) }, 'User ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(170, 170, true) }, 'Session Group'),
+                  e('th', { className:'sticky-col', style:stickyCol(340, 120, true) }, 'Type'),
+                  e('th', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, 'Overall Edits'),
+                  ...sessionBuckets.flatMap(bucket => [
+                    renderReflectionMetricHeader('s', bucket, 'minor', 'Minor Change'),
+                    renderReflectionMetricHeader('s', bucket, 'major', 'Major Change'),
+                    renderReflectionMetricHeader('s', bucket, 'words', 'Words Edited'),
+                  ]),
+                  e('th', null, 'Created'),
+                )
+              ),
+              e('tbody', null,
+                sessionsToShow.length
+                  ? sessionsToShow.map(row => e('tr', { key:row.id },
+                    e('td', { className:'sticky-col', style:stickyCol(0, 170) }, row.user_id || '—'),
+                    e('td', { className:'sticky-col', style:stickyCol(170, 170) }, row.group_id || '—'),
+                    e('td', { className:'sticky-col', style:stickyCol(340, 120) }, SESSION_GROUP_TYPE_LABELS[row.group_type || sessionGroupTypeById[row.group_id]] || row.group_type || sessionGroupTypeById[row.group_id] || '—'),
+                    e('td', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, String(row.edit_count || 0)),
+                    ...sessionBuckets.flatMap(bucket => {
+                      const m = getBucketMetric(row.par_metrics, bucket);
+                      return [
+                        e('td', { key:`s-${row.id}-${bucket}-minor` }, String(m.minor)),
+                        e('td', { key:`s-${row.id}-${bucket}-major` }, String(m.major)),
+                        e('td', { key:`s-${row.id}-${bucket}-words` }, String(m.words)),
+                      ];
+                    }),
+                    e('td', null, row.created_at ? formatSingaporeTime(row.created_at, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'),
+                  ))
+                  : e('tr', null, e('td', { colSpan:5 + (sessionBuckets.length * 3), style:{color:'var(--muted)'} }, selectedGroupId ? (adminLoading ? 'Loading sessions…' : 'No sessions found for selected group.') : 'Select a Group ID from Session Groups to view users and sessions.'))
+              )
+            )
+          )
+        )
+      )
+    )
+  );
+  }
+
+  if (!authReady) {
+    return e('div', { className:'gateway-wrap login-gateway-wrap' },
+      e('div', { className:'name-card', style:{ width:'min(520px, 92%)' } },
+        e('div', { className:'gateway-title' }, 'Session Login'),
+        e('div', { className:'gateway-sub' }, 'Enter your ID and password to login.'),
+        e('label', { className:'field-label' }, 'ID'),
         e('input', {
           className:'url-input',
-          type:'tel',
+          type:'text',
           inputMode:'numeric',
           pattern:'[0-9]*',
-          placeholder:'Your ID…',
+          placeholder:'Enter numeric ID',
           value:userId,
-          onChange:ev=>setUserId(ev.target.value.replace(/\D/g, '')),
+          onChange:ev=>setUserId((ev.target.value || '').replace(/\D+/g, '')),
         }),
+        e('label', { className:'field-label' }, 'Password'),
+        e('input', {
+          className:'url-input',
+          type:'password',
+          placeholder:'Enter your password',
+          value:groupPasswordInput,
+          onChange:ev=>setGroupPasswordInput(ev.target.value),
+        }),
+        authError ? e('div', { className:'banner error', style:{marginTop:'0.6rem', marginBottom:0} }, authError) : null,
         e('div', { className:'name-row' },
           e('div', { style:{ marginLeft:'auto' } },
-            e('button', { className:'btn-primary', disabled:!userId.trim(), onClick:()=>{ if (userId.trim()) setShowNameScreen(false); } }, 'Next')
+            e('button', {
+              className:'btn-primary',
+              onClick:handleEnterWithPassword,
+              disabled:!userId.trim() || !groupPasswordInput.trim(),
+            }, 'Login')
           )
         )
       )
@@ -1430,7 +2422,9 @@ function App() {
       e('div', { className:`status-dot ${running ? 'active' : ''}` }),
       e('h1', null, 'Engagement ', e('span',null,'Learner')),
       e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
-      userId ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, userId) : null,
+      userId ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, `User ${userId}`) : null,
+      activeGroup?.id ? e('span', { className:'pill', style:{ marginLeft:'0.4rem' } }, `${activeGroup.id} · ${SESSION_GROUP_TYPE_LABELS[activeGroup.type] || activeGroup.type}`) : null,
+      e('button', { className:'btn-ghost', style:{ marginLeft:'auto' }, onClick:handleLeaveToGateway }, 'Exit Session'),
     ),
 
     configWarn && e('div', { className:'banner warn' }, '⚠ ' + configWarn),
@@ -1441,7 +2435,7 @@ function App() {
         className:'url-input', type:'text',
         placeholder:'Paste a lecture / video URL…',
         value:contentUrl, onChange:ev=>setContentUrl(ev.target.value),
-        onBlur: ev => { if (ev.target.value) logEvent(sessionRef.current, 'link_pasted', { link_url: ev.target.value }).catch(() => {}); },
+        onBlur: ev => { if (ev.target.value) logEvent(sessionRef.current, activeGroup?.id || null, 'link_pasted', { link_url: ev.target.value }, userId).catch(() => {}); },
         disabled:running,
       }),
       e('div', { className:'controls-row' },
@@ -1510,14 +2504,25 @@ function App() {
 
         paused ? e('div', { className:'panel' },
           e('div',{className:'panel-header'},
-            e('span', null, '📊 Emotion Intensity Distribution Across Time Segments (5-Min Intervals)'),
+            e('span', null, `📊 Pause & Reflect #${activeSegmentRef.current} · Emotion Intensity Distribution Across Time Segments (5-Min Intervals)`),
             e('div', { className:'edit-counter', title:'Number of manual edits saved in this session' },
               e('span', null, 'Edits made'),
               e('span', { className:'count' }, String(Object.keys(overrides).length)),
             ),
           ),
           // ── LabelSplitCharts now receives sessionId ──
-          e(LabelSplitCharts, { history, sessionId, overrides, setOverrides, editableSegmentId: activeSegmentRef.current }),
+          e(LabelSplitCharts, {
+            history,
+            sessionId,
+            sessionGroup: activeGroup?.id || null,
+            userId,
+            overrides,
+            setOverrides,
+            editableSegmentId: activeSegmentRef.current,
+            pauseAndReflectNumber: activeSegmentRef.current,
+            canEdit: editPolicy.canEdit,
+            requireTextJustification: editPolicy.requireTextJustification,
+          }),
           e('div', { className:'panel-header', style:{ marginTop:'0.25rem' } }, '📈 Emotion Intensity Timeline View'),
           e('div', { style:{ display:'flex', gap:'1rem', padding:'0.7rem 1rem', flexWrap:'wrap', alignItems:'center' } },
             LABEL_COLS.map(lbl => e('label', { key:lbl, style:{ display:'flex', alignItems:'center', gap:'0.4rem', cursor:'pointer', color:'#ccc', fontSize:'0.85rem' } },
@@ -1537,8 +2542,7 @@ function App() {
             e('div',null, e('b',null,'Camera: '),    e('span',{className:cameraReady?'ok':'err'},String(cameraReady))),
             e('div',null, e('b',null,'Running: '),   e('span',{className:running?'ok':'err'},String(running))),
             e('div',null, e('b',null,'Session ID: '),sessionId??'—'),
-            e('div',null, e('b',null,'HF space: '),  e('span',{className:'ok'},HF_SPACE)),
-            e('div',null, e('b',null,'HF token: '),  HF_TOKEN ? e('span',{className:'ok'},'configured') : e('span',{className:'err'},'not set')),
+            e('div',null, e('b',null,'HF Space API: '), API_BASE_URL ? e('span',{className:'ok'},API_BASE_URL) : e('span',{className:'err'},'not set — edit HF_SPACE_URL')),
             e('div',null, e('b',null,'Supabase: '),   SUPABASE_URL?e('span',{className:'ok'},'configured'):e('span',{className:'err'},'not set')),
             e('div',null, e('b',null,'Buffer: '),     `${bufferLen} / ${WINDOW_FRAMES}`),
             e('div',null, e('b',null,'History rows: '),history.length),
