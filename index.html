@@ -442,7 +442,7 @@ import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-
 // ═══════════════════════════════════════════════════════════════
 // ── Hugging Face Space API endpoint ──────────────────────────────
 // Set this to your Hugging Face Docker Space public URL after deploying:
-const HF_SPACE_URL = 'https://Trylio-oelm-xgb-init.hf.space';
+const HF_SPACE_URL = '';
 const API_BASE_URL = HF_SPACE_URL;
 
 const SUPABASE_URL = 'https://idrukwbcxfimbuzcdvkk.supabase.co';
@@ -459,6 +459,7 @@ const ADMIN_USER_ID = '1729';
 const ADMIN_PASSWORD = 'OELM@2026';
 const MANUAL_OVERRIDE_TABLE = 'manual_overrides';
 const MANUAL_OVERRIDE_CHANGE_THRESHOLD_PERCENT = 20;
+const LABEL_SPLIT_MIN_BUCKET_MS = 1 * 60 * 1000;
 
 const SESSION_GROUP_TYPES = {
   WITHOUT_EDIT: 'without_edit',
@@ -539,7 +540,7 @@ const LABEL_COLS   = ['Boredom','Engagement','Confusion','Frustration'];
 const LABEL_COLORS = { Boredom:'#6B7280', Engagement:'#10B981', Confusion:'#F59E0B', Frustration:'#EF4444' };
 const LABEL_EMOJIS = { Boredom:'', Engagement:'', Confusion:'', Frustration:'' };
 const LEVEL_LABELS = ['Very Low','Low','High','Very High'];
-const LEVEL_COLORS = ['#6B7280', '#60A5FA', '#10B981', '#F59E0B'];
+const LEVEL_COLORS = ['#334155', '#38BDF8', '#22C55E', '#F97316'];
 
 const PLOTLY_STATIC_CONFIG = {
   displayModeBar: false,
@@ -1252,7 +1253,14 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
     }))
     .filter(r => r.level !== undefined && r.level !== null && !isNaN(r.ts));
   if (!rawRows.length) {
-    return { labels: [], percentagesPerLevel: [[], [], [], []], bucketKeys: [], editableMask: [] };
+    return {
+      labels: [],
+      percentagesPerLevel: [[], [], [], []],
+      bucketKeys: [],
+      editableMask: [],
+      bucketDurationMs: [],
+      visibleMask: [],
+    };
   }
 
   const pad = v => String(v).padStart(2, '0');
@@ -1270,6 +1278,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
   const bucketKeys = [];
   const editableMask = [];
   const bucketDurationMs = [];
+  const visibleMask = [];
   const counts = [];
 
   uniqueSegmentIds.forEach((segmentId, segIdx) => {
@@ -1309,17 +1318,10 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
       labels.push(`${fmtClock(start)}-${fmtClock(end)}`);
       bucketKeys.push(`seg${segmentId}:${start}-${end}`);
       editableMask.push(editableSegmentId !== null && segmentId === editableSegmentId);
-      bucketDurationMs.push(Math.max(1000, end - start));
+      const durationMs = Math.max(1000, end - start);
+      bucketDurationMs.push(durationMs);
+      visibleMask.push(durationMs >= LABEL_SPLIT_MIN_BUCKET_MS);
       counts.push(localCounts[i]);
-    }
-
-    // Insert a visual break between pause/resume segments.
-    if (segIdx < uniqueSegmentIds.length - 1) {
-      labels.push(' '.repeat(segIdx + 1));
-      bucketKeys.push(`gap:${segmentId}`);
-      editableMask.push(false);
-      bucketDurationMs.push(ms * 0.35);
-      counts.push([0, 0, 0, 0]);
     }
   });
 
@@ -1328,7 +1330,7 @@ function bucketLevelPercentages(history, label, bucketMinutes = 5, editableSegme
     const total = c.reduce((s, x) => s + x, 0) || 0;
     for (let i = 0; i < 4; i++) percentagesPerLevel[i].push(total ? +(c[i] / total * 100).toFixed(0) : 0);
   }
-  return { labels, percentagesPerLevel, bucketKeys, editableMask, bucketDurationMs };
+  return { labels, percentagesPerLevel, bucketKeys, editableMask, bucketDurationMs, visibleMask };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1547,11 +1549,11 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
   function renderChart(label, idx, chartData) {
     const div = chartRefs.current[idx];
     if (!div) return;
-    const { labels, percentagesPerLevel, editableMask, bucketDurationMs } = chartData;
+    const { labels, percentagesPerLevel, editableMask, bucketDurationMs, visibleMask } = chartData;
     if (!labels.length) { Plotly.purge?.(div); return; }
 
     const durationUnit = 5 * 60 * 1000;
-    const normalizedWidths = bucketDurationMs.map(d => Math.max(0.18, d / durationUnit));
+    const normalizedWidths = bucketDurationMs.map(d => d / durationUnit);
     const xPositions = [];
     let cursor = 0;
     for (let i = 0; i < normalizedWidths.length; i++) {
@@ -1560,19 +1562,11 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
       cursor += w;
     }
 
-    let lastRealIdx = -1;
-    for (let i = labels.length - 1; i >= 0; i--) {
-      if (labels[i].trim()) {
-        lastRealIdx = i;
-        break;
-      }
-    }
-
     const tickvals = xPositions;
-    const ticktext = labels.map(l => l.trim() ? l : '');
+    const ticktext = labels.map((l, i) => visibleMask?.[i] ? l : '');
     const lockAnnotations = labels
       .map((lbl, bi) => {
-        if (!lbl.trim()) return null;
+        if (!visibleMask?.[bi]) return null;
         if (editableMask?.[bi]) return null;
         return {
           x: xPositions[bi],
@@ -1587,61 +1581,26 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
       })
       .filter(Boolean);
 
-    const lastBarAnnotations = [];
-    const lastBarShapes = [];
-    if (lastRealIdx >= 0) {
-      const lastCenter = xPositions[lastRealIdx];
-      const lastWidth = normalizedWidths[lastRealIdx] * 0.92;
-      const lastStart = lastCenter - (lastWidth / 2);
-      const lastEnd = lastCenter + (lastWidth / 2);
-      lastBarShapes.push({
-        type: 'rect',
-        xref: 'x',
-        yref: 'paper',
-        x0: lastStart,
-        x1: lastEnd,
-        y0: 0,
-        y1: 1,
-        line: { color: '#f8fafc', width: 1.8 },
-        fillcolor: 'rgba(248,250,252,0.06)',
-        layer: 'above',
-      });
-      lastBarAnnotations.push({
-        x: lastCenter,
-        y: 102,
-        xref: 'x',
-        yref: 'y',
-        text: 'Latest',
-        showarrow: false,
-        font: { size: 10, color: '#f8fafc' },
-      });
-    }
-
     const traces = LEVEL_LABELS.map((lvl, li) => ({
       x: xPositions,
-      y: labels.map((lbl, bi) => (lbl.trim() ? percentagesPerLevel[li][bi] : null)),
+      y: labels.map((lbl, bi) => (visibleMask?.[bi] ? percentagesPerLevel[li][bi] : null)),
       width: normalizedWidths.map(w => w * 0.92),
       customdata: labels,
       name: lvl, type: 'bar',
       marker: {
         color: LEVEL_COLORS[li],
-        line: {
-          color: labels.map((lbl, bi) => {
-            if (!lbl.trim()) return 'rgba(0,0,0,0)';
-            return bi === lastRealIdx ? '#f8fafc' : 'rgba(15,23,42,0.45)';
-          }),
-          width: labels.map((lbl, bi) => {
-            if (!lbl.trim()) return 0;
-            return bi === lastRealIdx ? 1.8 : 0.4;
-          }),
-        },
+        line: { color: 'rgba(0,0,0,0)', width: 0 },
         opacity: labels.map((lbl, bi) => {
-          if (!lbl.trim()) return 0;
-          return editableMask?.[bi] ? 1 : 0.35;
+          if (!visibleMask?.[bi]) return 0;
+          return 1;
         }),
       },
-      text: labels.map((lbl, bi) => (lbl.trim() ? `${percentagesPerLevel[li][bi]}%` : '')),
+      text: labels.map((lbl, bi) => (visibleMask?.[bi] ? `${percentagesPerLevel[li][bi]}%` : '')),
       textposition: 'auto',
+      textfont: {
+        color: (li === 1 || li === 3) ? '#0b1220' : '#f8fafc',
+        size: 10,
+      },
       hovertemplate: `<b>${label} — ${lvl}</b><br>%{customdata}: %{y}%<extra></extra>`,
     }));
 
@@ -1661,8 +1620,8 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
       },
       yaxis:{ fixedrange:true, range:[0,100], ticksuffix:'%', showline:true, linecolor:'#666', linewidth:2, gridcolor:'rgba(80,80,100,0.2)', color:'#aaa', automargin:true, title:{text:'Percentage of Time (%)',font:{size:11,color:'#ccc'},standoff:16} },
       font:{size:11, color:'#ccc'},
-      annotations: [...lockAnnotations, ...lastBarAnnotations],
-      shapes: lastBarShapes,
+      legend:{ itemclick:false, itemdoubleclick:false },
+      annotations: lockAnnotations,
       dragmode:false,
     }, PLOTLY_EDIT_CONFIG);
 
@@ -1676,6 +1635,7 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
       const baseChartData = bucketLevelPercentages(history, label, 5, editableSegmentId);
       const chartData2 = getChartData(label);
       const bucketLabel = chartData2.labels[bucketIdx];
+      if (!chartData2.visibleMask?.[bucketIdx]) return;
       if (!chartData2.editableMask[bucketIdx]) return;
       const bucketKey = chartData2.bucketKeys[bucketIdx];
       const initialValues = LEVEL_LABELS.map((_, li) => baseChartData.percentagesPerLevel?.[li]?.[bucketIdx] ?? 0);
@@ -1756,7 +1716,6 @@ function App() {
   const [groupPasswordInput, setGroupPasswordInput] = useState('');
   const [authError,    setAuthError]    = useState('');
   const [authReady,    setAuthReady]    = useState(false);
-  const [authLoading,  setAuthLoading]  = useState(false);
   const [isAdminMode,  setIsAdminMode]  = useState(false);
   const [sessionGroups, setSessionGroups] = useState([]);
   const [activeGroup,  setActiveGroup]  = useState(null);
@@ -1920,7 +1879,6 @@ function App() {
   }, [newSessionGroupId, newGroupType, newGroupNote, refreshSessionGroups, sessionGroups]);
 
   const handleEnterWithPassword = useCallback(async () => {
-    if (authLoading) return;
     const uid = (userId || '').trim();
     const enteredPassword = (groupPasswordInput || '').trim();
     if (!uid) {
@@ -1951,7 +1909,6 @@ function App() {
       return;
     }
     try {
-      setAuthLoading(true);
       const newSessionId = await createSession(uid, group.id, uid, group.type || '');
       setSessionId(newSessionId);
       sessionRef.current = newSessionId;
@@ -1959,14 +1916,12 @@ function App() {
     } catch (e) {
       setAuthError('Login succeeded but session row creation failed: ' + String(e));
       return;
-    } finally {
-      setAuthLoading(false);
     }
     setActiveGroup(group);
     setIsAdminMode(false);
     setAuthError('');
     setAuthReady(true);
-  }, [authLoading, userId, groupPasswordInput, sessionGroups, refreshAdminOverview, refreshSessionGroups]);
+  }, [userId, groupPasswordInput, sessionGroups, refreshAdminOverview, refreshSessionGroups]);
 
   const processFrame = useCallback(async () => {
     if (!runningRef.current) return;
@@ -2197,7 +2152,7 @@ function App() {
     };
 
     const renderReflectionMetricHeader = (prefix, bucket, metricKey, metricLabel) => (
-      e('th', { key:`${prefix}-${bucket}-${metricKey}` }, `${metricLabel} (Reflection ${bucket})`)
+      e('th', { key:`${prefix}-${bucket}-${metricKey}` }, `Reflection-${bucket} ${metricLabel}`)
     );
 
     const groupsById = {};
@@ -2255,7 +2210,7 @@ function App() {
       e('div', { className:'gateway-admin-shell' },
         e('div', { className:'gateway-grid' },
         e('div', { className:'gateway-card admin-controls-card' },
-          e('div', { className:'gateway-title' }, 'Admin Controls'),
+          e('div', { className:'gateway-title' }, 'Instructor Controls'),
           e('div', { className:'gateway-sub' }, 'Create session groups and track session activity with edit counts.'),
           e('label', { className:'field-label' }, 'Session Group'),
           e('input', {
@@ -2275,7 +2230,7 @@ function App() {
               e('option', { key:type, value:type }, SESSION_GROUP_TYPE_LABELS[type])
             )
           ),
-          e('label', { className:'field-label' }, 'Admin Note (optional)'),
+          e('label', { className:'field-label' }, 'Instructor Note (optional)'),
           e('input', {
             className:'url-input',
             type:'text',
@@ -2293,26 +2248,26 @@ function App() {
         ),
 
         e('div', { className:'gateway-card admin-groups-card' },
-          e('div', { className:'gateway-title' }, 'Admin Dashboard'),
+          e('div', { className:'gateway-title' }, 'Instructor Dashboard'),
           e('div', { className:'summary-row' },
-            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Reflection-Cohorts'), e('div', { className:'v' }, String(sessionGroups.length))),
-            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Tracked Reflections'), e('div', { className:'v' }, String(adminSessions.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Session Groups'), e('div', { className:'v' }, String(sessionGroups.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Tracked Sessions'), e('div', { className:'v' }, String(adminSessions.length))),
             e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Total Edits'), e('div', { className:'v' }, String(adminSessions.reduce((s, r) => s + (r.edit_count || 0), 0)))),
             e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Data State'), e('div', { className:'v' }, adminLoading ? 'Loading…' : 'Ready')),
           ),
 
-          e('div', { className:'field-label', style:{marginTop:0} }, 'Reflection-Cohort'),
+          e('div', { className:'field-label', style:{marginTop:0} }, 'Session Groups'),
           e('div', { className:'table-wrap wide admin-group-table-wrap' },
             e('table', { className:'admin-table wide' },
               e('thead', null,
                 e('tr', null,
-                  e('th', { className:'sticky-col', style:stickyCol(0, 190, true) }, 'Cohort ID'),
-                  e('th', { className:'sticky-col', style:stickyCol(190, 120, true) }, 'Activity Type'),
-                  e('th', null, 'Task Description'),
-                  e('th', null, 'Access Code'),
-                  e('th', null, 'Created On'),
-                  e('th', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, 'Total Edits Made'),
-                  e('th', null, 'Total Participants'),
+                  e('th', { className:'sticky-col', style:stickyCol(0, 190, true) }, 'Group ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(190, 120, true) }, 'Type'),
+                  e('th', null, 'Description'),
+                  e('th', null, 'Password'),
+                  e('th', null, 'Created'),
+                  e('th', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, 'Overall Edits'),
+                  e('th', null, 'Sessions'),
                 )
               ),
               e('tbody', null,
@@ -2323,7 +2278,7 @@ function App() {
                         type:'button',
                         className:`group-id-btn ${selectedGroupId === g.id ? 'active' : ''}`,
                         onClick:() => setSelectedAdminGroupId(prev => prev === g.id ? null : g.id),
-                        title:selectedGroupId === g.id ? 'Click to clear filter' : 'Click to show only this cohort in Reflections table',
+                        title:selectedGroupId === g.id ? 'Click to clear filter' : 'Click to show only this group in Sessions table',
                       }, g.id)
                     ),
                     e('td', { className:'sticky-col', style:stickyCol(190, 120) }, SESSION_GROUP_TYPE_LABELS[g.type] || g.type),
@@ -2333,7 +2288,7 @@ function App() {
                     e('td', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, String(g.edits || 0)),
                     e('td', null, String(g.sessions || 0)),
                   ))
-                  : e('tr', null, e('td', { colSpan:7, style:{color:'var(--muted)'} }, 'No reflection cohorts yet.'))
+                  : e('tr', null, e('td', { colSpan:7, style:{color:'var(--muted)'} }, 'No session groups yet.'))
               )
             )
           )
@@ -2341,21 +2296,21 @@ function App() {
       ),
       e('div', { className:'gateway-card dashboard-card' },
         e('div', { className:'admin-session-section' },
-          e('div', { className:'field-label admin-sticky-heading' }, selectedGroupId ? `Reflections · ${selectedGroupId}` : 'Reflections (Select a Cohort ID Above)'),
+          e('div', { className:'field-label admin-sticky-heading' }, selectedGroupId ? `Sessions · ${selectedGroupId}` : 'Sessions (Select a Group ID Above)'),
           e('div', { className:'table-wrap wide admin-session-table-wrap' },
             e('table', { className:'admin-table wide admin-session-table' },
               e('thead', null,
                 e('tr', null,
-                  e('th', { className:'sticky-col', style:stickyCol(0, 170, true) }, 'Participant ID'),
-                  e('th', { className:'sticky-col', style:stickyCol(170, 170, true) }, 'Cohort ID'),
-                  e('th', { className:'sticky-col', style:stickyCol(340, 120, true) }, 'Activity Type'),
-                  e('th', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, 'Total Edits Made'),
+                  e('th', { className:'sticky-col', style:stickyCol(0, 170, true) }, 'User ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(170, 170, true) }, 'Session Group'),
+                  e('th', { className:'sticky-col', style:stickyCol(340, 120, true) }, 'Type'),
+                  e('th', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, 'Overall Edits'),
                   ...sessionBuckets.flatMap(bucket => [
-                    renderReflectionMetricHeader('s', bucket, 'minor', 'Minor Edits'),
-                    renderReflectionMetricHeader('s', bucket, 'major', 'Major Revisions'),
-                    renderReflectionMetricHeader('s', bucket, 'words', 'Word Count'),
+                    renderReflectionMetricHeader('s', bucket, 'minor', 'Minor Change'),
+                    renderReflectionMetricHeader('s', bucket, 'major', 'Major Change'),
+                    renderReflectionMetricHeader('s', bucket, 'words', 'Words Edited'),
                   ]),
-                  e('th', null, 'Submission Date'),
+                  e('th', null, 'Created'),
                 )
               ),
               e('tbody', null,
@@ -2375,7 +2330,7 @@ function App() {
                     }),
                     e('td', null, row.created_at ? formatSingaporeTime(row.created_at, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'),
                   ))
-                  : e('tr', null, e('td', { colSpan:5 + (sessionBuckets.length * 3), style:{color:'var(--muted)'} }, selectedGroupId ? (adminLoading ? 'Loading reflections…' : 'No reflections found for selected cohort.') : 'Select a Cohort ID from Reflection-Cohort to view participants and reflections.'))
+                  : e('tr', null, e('td', { colSpan:5 + (sessionBuckets.length * 3), style:{color:'var(--muted)'} }, selectedGroupId ? (adminLoading ? 'Loading sessions…' : 'No sessions found for selected group.') : 'Select a Group ID from Session Groups to view users and sessions.'))
               )
             )
           )
@@ -2414,8 +2369,8 @@ function App() {
             e('button', {
               className:'btn-primary',
               onClick:handleEnterWithPassword,
-              disabled:authLoading || !userId.trim() || !groupPasswordInput.trim(),
-            }, authLoading ? 'Logging in…' : 'Login')
+              disabled:!userId.trim() || !groupPasswordInput.trim(),
+            }, 'Login')
           )
         )
       )
