@@ -1669,7 +1669,7 @@ function LabelSplitCharts({ history, sessionId, sessionGroup, overrides, setOver
             e('div', { style:{fontSize:'0.72rem', color:'#9ba3c4', marginTop:'0.15rem', padding:'0 0.1rem'} }, '5 Min Windows'),
             canEdit
               ? e('div', { className:'chart-click-hint' }, '💡 Click a bar to contest AI predictions you disagree with')
-              : e('div', { className:'chart-click-hint' }, '🔒 Editing disabled for your assigned session group'),
+              : e('div', { className:'chart-click-hint' }, '🔒 Editing disabled for your assigned cohort'),
             e('div', {
               ref: el => chartRefs.current[idx] = el,
               style:{
@@ -1852,11 +1852,11 @@ function App() {
   const handleCreateSessionGroup = useCallback(async () => {
     const requestedId = (newSessionGroupId || '').trim();
     if (!requestedId) {
-      setAdminError('Session group is required.');
+      setAdminError('Cohort ID is required.');
       return;
     }
     if (sessionGroups.some(g => String(g.id).toLowerCase() === requestedId.toLowerCase())) {
-      setAdminError('Session group already exists. Please use a unique value.');
+      setAdminError('Cohort ID already exists. Please use a unique value.');
       return;
     }
     const now = new Date().toISOString();
@@ -1882,15 +1882,15 @@ function App() {
     const uid = (userId || '').trim();
     const enteredPassword = (groupPasswordInput || '').trim();
     if (!uid) {
-      setAuthError('User ID is required.');
+      setAuthError('Participant ID is required.');
       return;
     }
     if (!/^\d+$/.test(uid)) {
-      setAuthError('User ID must contain numbers only.');
+      setAuthError('Participant ID must contain numbers only.');
       return;
     }
     if (!enteredPassword) {
-      setAuthError('Session group password is required.');
+      setAuthError('Access code is required.');
       return;
     }
     if (uid === ADMIN_USER_ID && enteredPassword === ADMIN_PASSWORD) {
@@ -2152,7 +2152,7 @@ function App() {
     };
 
     const renderReflectionMetricHeader = (prefix, bucket, metricKey, metricLabel) => (
-      e('th', { key:`${prefix}-${bucket}-${metricKey}` }, `Reflection-${bucket} ${metricLabel}`)
+      e('th', { key:`${prefix}-${bucket}-${metricKey}` }, `${metricLabel} (Reflection ${bucket})`)
     );
 
     const groupsById = {};
@@ -2210,9 +2210,9 @@ function App() {
       e('div', { className:'gateway-admin-shell' },
         e('div', { className:'gateway-grid' },
         e('div', { className:'gateway-card admin-controls-card' },
-          e('div', { className:'gateway-title' }, 'Instructor Controls'),
-          e('div', { className:'gateway-sub' }, 'Create session groups and track session activity with edit counts.'),
-          e('label', { className:'field-label' }, 'Session Group'),
+          e('div', { className:'gateway-title' }, 'Cohort Setup'),
+          e('div', { className:'gateway-sub' }, 'Create cohorts and track participant reflection activity with edit counts.'),
+          e('label', { className:'field-label' }, 'Cohort ID'),
           e('input', {
             className:'url-input',
             type:'text',
@@ -2220,7 +2220,7 @@ function App() {
             value:newSessionGroupId,
             onChange:ev=>setNewSessionGroupId(ev.target.value),
           }),
-          e('label', { className:'field-label' }, 'Session Group Type'),
+          e('label', { className:'field-label' }, 'Activity Type'),
           e('select', {
             className:'url-input',
             value:newGroupType,
@@ -2230,7 +2230,7 @@ function App() {
               e('option', { key:type, value:type }, SESSION_GROUP_TYPE_LABELS[type])
             )
           ),
-          e('label', { className:'field-label' }, 'Instructor Note (optional)'),
+          e('label', { className:'field-label' }, 'Cohort Note (optional)'),
           e('input', {
             className:'url-input',
             type:'text',
@@ -2239,7 +2239,7 @@ function App() {
             onChange:ev=>setNewGroupNote(ev.target.value),
           }),
           e('div', { className:'name-row' },
-            e('button', { className:'btn-primary', style:{flex:'1 1 100%'}, onClick:handleCreateSessionGroup, disabled:!(newSessionGroupId || '').trim() }, 'Create Group + Auto Password'),
+            e('button', { className:'btn-primary', style:{flex:'1 1 100%'}, onClick:handleCreateSessionGroup, disabled:!(newSessionGroupId || '').trim() }, 'Create Cohort + Auto Access Code'),
             e('button', { className:'btn-ghost', style:{flex:'1 1 48%'}, onClick:handleRefreshAdminData }, 'Refresh Data'),
             e('button', { className:'btn-ghost', style:{flex:'1 1 48%'}, onClick:handleLeaveToGateway }, 'Back To Login'),
           ),
@@ -2248,26 +2248,26 @@ function App() {
         ),
 
         e('div', { className:'gateway-card admin-groups-card' },
-          e('div', { className:'gateway-title' }, 'Instructor Dashboard'),
+          e('div', { className:'gateway-title' }, 'Reflection Cohort Dashboard'),
           e('div', { className:'summary-row' },
-            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Session Groups'), e('div', { className:'v' }, String(sessionGroups.length))),
-            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Tracked Sessions'), e('div', { className:'v' }, String(adminSessions.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Cohorts'), e('div', { className:'v' }, String(sessionGroups.length))),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Participant Submissions'), e('div', { className:'v' }, String(adminSessions.length))),
             e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Total Edits'), e('div', { className:'v' }, String(adminSessions.reduce((s, r) => s + (r.edit_count || 0), 0)))),
-            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Data State'), e('div', { className:'v' }, adminLoading ? 'Loading…' : 'Ready')),
+            e('div', { className:'summary-box' }, e('div', { className:'k' }, 'Sync Status'), e('div', { className:'v' }, adminLoading ? 'Loading…' : 'Ready')),
           ),
 
-          e('div', { className:'field-label', style:{marginTop:0} }, 'Session Groups'),
+          e('div', { className:'field-label', style:{marginTop:0} }, 'Reflection Cohort Data'),
           e('div', { className:'table-wrap wide admin-group-table-wrap' },
             e('table', { className:'admin-table wide' },
               e('thead', null,
                 e('tr', null,
-                  e('th', { className:'sticky-col', style:stickyCol(0, 190, true) }, 'Group ID'),
-                  e('th', { className:'sticky-col', style:stickyCol(190, 120, true) }, 'Type'),
-                  e('th', null, 'Description'),
-                  e('th', null, 'Password'),
-                  e('th', null, 'Created'),
-                  e('th', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, 'Overall Edits'),
-                  e('th', null, 'Sessions'),
+                  e('th', { className:'sticky-col', style:stickyCol(0, 190, true) }, 'Cohort ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(190, 120, true) }, 'Activity Type'),
+                  e('th', null, 'Task Description'),
+                  e('th', null, 'Access Code'),
+                  e('th', null, 'Created On'),
+                  e('th', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, 'Total Edits Made'),
+                  e('th', null, 'Total Participants'),
                 )
               ),
               e('tbody', null,
@@ -2278,7 +2278,7 @@ function App() {
                         type:'button',
                         className:`group-id-btn ${selectedGroupId === g.id ? 'active' : ''}`,
                         onClick:() => setSelectedAdminGroupId(prev => prev === g.id ? null : g.id),
-                        title:selectedGroupId === g.id ? 'Click to clear filter' : 'Click to show only this group in Sessions table',
+                        title:selectedGroupId === g.id ? 'Click to clear filter' : 'Click to show only this group in Participant Reflection Data table',
                       }, g.id)
                     ),
                     e('td', { className:'sticky-col', style:stickyCol(190, 120) }, SESSION_GROUP_TYPE_LABELS[g.type] || g.type),
@@ -2288,7 +2288,7 @@ function App() {
                     e('td', { style:{ minWidth:'110px', width:'110px', maxWidth:'110px' } }, String(g.edits || 0)),
                     e('td', null, String(g.sessions || 0)),
                   ))
-                  : e('tr', null, e('td', { colSpan:7, style:{color:'var(--muted)'} }, 'No session groups yet.'))
+                  : e('tr', null, e('td', { colSpan:7, style:{color:'var(--muted)'} }, 'No cohorts created yet.'))
               )
             )
           )
@@ -2296,21 +2296,21 @@ function App() {
       ),
       e('div', { className:'gateway-card dashboard-card' },
         e('div', { className:'admin-session-section' },
-          e('div', { className:'field-label admin-sticky-heading' }, selectedGroupId ? `Sessions · ${selectedGroupId}` : 'Sessions (Select a Group ID Above)'),
+          e('div', { className:'field-label admin-sticky-heading' }, selectedGroupId ? `Participant Reflection Data · ${selectedGroupId}` : 'Participant Reflection Data (Select a Cohort ID Above)'),
           e('div', { className:'table-wrap wide admin-session-table-wrap' },
             e('table', { className:'admin-table wide admin-session-table' },
               e('thead', null,
                 e('tr', null,
-                  e('th', { className:'sticky-col', style:stickyCol(0, 170, true) }, 'User ID'),
-                  e('th', { className:'sticky-col', style:stickyCol(170, 170, true) }, 'Session Group'),
-                  e('th', { className:'sticky-col', style:stickyCol(340, 120, true) }, 'Type'),
-                  e('th', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, 'Overall Edits'),
+                  e('th', { className:'sticky-col', style:stickyCol(0, 170, true) }, 'Participant ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(170, 170, true) }, 'Cohort ID'),
+                  e('th', { className:'sticky-col', style:stickyCol(340, 120, true) }, 'Activity Type'),
+                  e('th', { style:{ minWidth:'120px', width:'120px', maxWidth:'120px' } }, 'Total Edits Made'),
                   ...sessionBuckets.flatMap(bucket => [
-                    renderReflectionMetricHeader('s', bucket, 'minor', 'Minor Change'),
-                    renderReflectionMetricHeader('s', bucket, 'major', 'Major Change'),
-                    renderReflectionMetricHeader('s', bucket, 'words', 'Words Edited'),
+                    renderReflectionMetricHeader('s', bucket, 'minor', 'Minor Edits'),
+                    renderReflectionMetricHeader('s', bucket, 'major', 'Major Revisions'),
+                    renderReflectionMetricHeader('s', bucket, 'words', 'Word Count'),
                   ]),
-                  e('th', null, 'Created'),
+                  e('th', null, 'Submission Date'),
                 )
               ),
               e('tbody', null,
@@ -2330,7 +2330,7 @@ function App() {
                     }),
                     e('td', null, row.created_at ? formatSingaporeTime(row.created_at, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'),
                   ))
-                  : e('tr', null, e('td', { colSpan:5 + (sessionBuckets.length * 3), style:{color:'var(--muted)'} }, selectedGroupId ? (adminLoading ? 'Loading sessions…' : 'No sessions found for selected group.') : 'Select a Group ID from Session Groups to view users and sessions.'))
+                  : e('tr', null, e('td', { colSpan:5 + (sessionBuckets.length * 3), style:{color:'var(--muted)'} }, selectedGroupId ? (adminLoading ? 'Loading participant data…' : 'No submissions found for this cohort.') : 'Select a cohort to view participant reflections.'))
               )
             )
           )
@@ -2343,23 +2343,23 @@ function App() {
   if (!authReady) {
     return e('div', { className:'gateway-wrap login-gateway-wrap' },
       e('div', { className:'name-card', style:{ width:'min(520px, 92%)' } },
-        e('div', { className:'gateway-title' }, 'Session Login'),
-        e('div', { className:'gateway-sub' }, 'Enter your ID and password to login.'),
-        e('label', { className:'field-label' }, 'ID'),
+        e('div', { className:'gateway-title' }, 'Participant Login'),
+        e('div', { className:'gateway-sub' }, 'Enter your Participant ID and Access Code to login.'),
+        e('label', { className:'field-label' }, 'Participant ID'),
         e('input', {
           className:'url-input',
           type:'text',
           inputMode:'numeric',
           pattern:'[0-9]*',
-          placeholder:'Enter numeric ID',
+          placeholder:'Enter numeric Participant ID',
           value:userId,
           onChange:ev=>setUserId((ev.target.value || '').replace(/\D+/g, '')),
         }),
-        e('label', { className:'field-label' }, 'Password'),
+        e('label', { className:'field-label' }, 'Access Code'),
         e('input', {
           className:'url-input',
           type:'password',
-          placeholder:'Enter your password',
+          placeholder:'Enter your access code',
           value:groupPasswordInput,
           onChange:ev=>setGroupPasswordInput(ev.target.value),
         }),
@@ -2382,7 +2382,7 @@ function App() {
       e('div', { className:`status-dot ${running ? 'active' : ''}` }),
       e('h1', null, 'Engagement ', e('span',null,'Learner')),
       e('span', { className:'privacy-badge' }, '🔒 All camera processing is local'),
-      userId ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, `User ${userId}`) : null,
+      userId ? e('div', { style:{ marginLeft:'8px', color:'var(--subtext)', fontFamily:'var(--mono)'} }, `Participant ${userId}`) : null,
       activeGroup?.id ? e('span', { className:'pill', style:{ marginLeft:'0.4rem' } }, `${activeGroup.id} · ${SESSION_GROUP_TYPE_LABELS[activeGroup.type] || activeGroup.type}`) : null,
       e('button', { className:'btn-ghost', style:{ marginLeft:'auto' }, onClick:handleLeaveToGateway }, 'Exit Session'),
     ),
